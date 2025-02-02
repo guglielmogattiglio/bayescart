@@ -1,5 +1,11 @@
-[![Documentation Status](https://img.shields.io/badge/docs-online-blue.svg)](https://guglielmogattiglio.github.io/bayescart/)
-[![Docs Build](https://github.com/guglielmogattiglio/bayescart/actions/workflows/docs.yml/badge.svg)](https://github.com/guglielmogattiglio/bayescart/actions/workflows/docs.yml)
+<div align="center">
+  <a href="https://guglielmogattiglio.github.io/bayescart/">
+    <img src="https://img.shields.io/badge/docs-online-blue.svg" alt="Documentation Status">
+  </a>
+  <a href="https://github.com/guglielmogattiglio/bayescart/actions/workflows/docs.yml">
+    <img src="https://github.com/guglielmogattiglio/bayescart/actions/workflows/docs.yml/badge.svg" alt="Docs Build">
+  </a>
+</div>
 
 
 # BayesCART
