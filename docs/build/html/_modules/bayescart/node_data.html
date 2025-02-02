@@ -1,0 +1,880 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>bayescart.node_data &mdash; bayescart  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            bayescart
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../modules.html">bayescart</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">bayescart</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">bayescart.node_data</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for bayescart.node_data</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Node data classes for bayescart.</span>
+
+<span class="sd">This module defines classes that encapsulate the data associated with</span>
+<span class="sd">a tree node. It provides a base class NodeData along with subclasses for</span>
+<span class="sd">regression (NodeDataRegression) and classification (NodeDataClassification).</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sequence</span><span class="p">,</span> <span class="n">Self</span><span class="p">,</span> <span class="n">Any</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">math</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">copy</span><span class="w"> </span><span class="kn">import</span> <span class="n">deepcopy</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.mytyping</span><span class="w"> </span><span class="kn">import</span> <span class="n">T</span><span class="p">,</span> <span class="n">NDArrayInt</span><span class="p">,</span> <span class="n">NDArrayFloat</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.exceptions</span><span class="w"> </span><span class="kn">import</span> <span class="n">AbstractMethodError</span><span class="p">,</span> <span class="n">InvalidTreeError</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">wraps</span>
+
+<div class="viewcode-block" id="NodeData">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.node_data.NodeData">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">NodeData</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Abstract base class for data associated with a node in the CART tree.</span>
+<span class="sd">    </span>
+<span class="sd">    Attributes</span>
+<span class="sd">    ----------</span>
+<span class="sd">    X : pd.DataFrame</span>
+<span class="sd">        The data features at this node.</span>
+<span class="sd">    y : pd.Series</span>
+<span class="sd">        The response variable at this node.</span>
+<span class="sd">    rng : np.random.Generator</span>
+<span class="sd">        Random number generator for sampling.</span>
+<span class="sd">    debug : bool</span>
+<span class="sd">        If True, enables additional debugging checks.</span>
+<span class="sd">    node_min_size : int</span>
+<span class="sd">        Minimum number of observations required in the node.</span>
+<span class="sd">    split_var : str</span>
+<span class="sd">        The variable used for splitting (if any).</span>
+<span class="sd">    split_set : Sequence[T] or T</span>
+<span class="sd">        The value(s) used in the splitting rule.</span>
+<span class="sd">    is_cat_split : bool</span>
+<span class="sd">        Indicator whether the split is categorical.</span>
+<span class="sd">    avail_splits : Any</span>
+<span class="sd">        Cached available splits (initially None).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+<div class="viewcode-block" id="NodeData.__init__">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.node_data.NodeData.__init__">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">,</span> 
+                 <span class="n">rng</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">Generator</span><span class="p">,</span> 
+                 <span class="n">debug</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
+                 <span class="n">node_min_size</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+                 <span class="n">split_var</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> 
+                 <span class="n">split_set</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">T</span><span class="p">]</span> <span class="o">|</span> <span class="n">T</span> <span class="o">|</span><span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                 <span class="n">is_cat_split</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">node_min_size</span> <span class="o">=</span> <span class="n">node_min_size</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">X</span> <span class="o">=</span> <span class="n">X</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">y</span> <span class="o">=</span> <span class="n">y</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rng</span> <span class="o">=</span> <span class="n">rng</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">_tot</span> <span class="o">:=</span> <span class="p">(</span><span class="n">is_cat_split</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">)</span> <span class="o">+</span> <span class="p">(</span><span class="n">split_var</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">)</span> <span class="o">+</span> <span class="p">(</span><span class="n">split_set</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">))</span> <span class="o">!=</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">_tot</span> <span class="o">!=</span> <span class="mi">3</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Either all or none of the split parameters must be None&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">split_var</span> <span class="o">=</span> <span class="n">split_var</span> <span class="k">if</span> <span class="n">split_var</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="s1">&#39;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">is_cat_split</span> <span class="o">=</span> <span class="n">is_cat_split</span> <span class="k">if</span> <span class="n">is_cat_split</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">split_set</span> <span class="o">=</span> <span class="n">split_set</span> <span class="k">if</span> <span class="n">split_set</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="s2">&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">debug</span> <span class="o">=</span> <span class="n">debug</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">avail_splits</span> <span class="o">=</span> <span class="kc">None</span></div>
+
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">X</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_X</span>
+    
+    <span class="nd">@X</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">X</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;X must be a pandas DataFrame&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_nobs_from_arg</span><span class="p">(</span><span class="n">val</span><span class="p">)</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">node_min_size</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">InvalidTreeError</span><span class="p">(</span><span class="s1">&#39;Node has less than min node size observations&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_X</span> <span class="o">=</span> <span class="n">val</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">y</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_y</span>
+    
+    <span class="nd">@y</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">y</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;y must be a pandas Series&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_nobs_from_arg</span><span class="p">(</span><span class="n">val</span><span class="p">)</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">node_min_size</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">InvalidTreeError</span><span class="p">(</span><span class="s1">&#39;Node has less than min node size observations&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_y</span> <span class="o">=</span> <span class="n">val</span>
+
+<div class="viewcode-block" id="NodeData.has_data">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.node_data.NodeData.has_data">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">has_data</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">(</span><span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;_X&#39;</span><span class="p">))</span> <span class="ow">and</span> <span class="p">(</span><span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;_y&#39;</span><span class="p">))</span></div>
+
+        
+    <span class="k">def</span><span class="w"> </span><span class="nf">__deepcopy__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">memo</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">light</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">memo</span><span class="o">=</span><span class="n">memo</span><span class="p">)</span>
+
+<div class="viewcode-block" id="NodeData.copy">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.node_data.NodeData.copy">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">copy</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">light</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">no_data</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">memo</span><span class="p">:</span> <span class="nb">dict</span><span class="o">|</span><span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s1">&#39;NodeData&#39;</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">memo</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">memo</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">cls</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__dict__</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">k</span> <span class="o">==</span> <span class="s1">&#39;_X&#39;</span> <span class="ow">or</span> <span class="n">k</span> <span class="o">==</span> <span class="s1">&#39;_y&#39;</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">no_data</span><span class="p">:</span>
+                    <span class="n">result</span><span class="o">.</span><span class="n">nobs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_nobs</span><span class="p">()</span> <span class="c1"># type: ignore</span>
+                    <span class="k">continue</span>
+                <span class="k">elif</span> <span class="n">light</span><span class="p">:</span>
+                    <span class="nb">setattr</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="nb">setattr</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">memo</span><span class="p">))</span>
+            <span class="k">elif</span> <span class="n">k</span> <span class="o">==</span> <span class="s1">&#39;rng&#39;</span><span class="p">:</span>
+                <span class="nb">setattr</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="nb">setattr</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">memo</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">result</span></div>
+
+        
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_is_categorical</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="s1">&#39;cat&#39;</span><span class="p">)</span>
+        
+
+<div class="viewcode-block" id="NodeData.get_nobs">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.node_data.NodeData.get_nobs">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_nobs</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_nobs_from_arg</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">X</span><span class="p">)</span></div>
+
+    
+
+<div class="viewcode-block" id="NodeData.get_nobs_from_arg">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.node_data.NodeData.get_nobs_from_arg">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_nobs_from_arg</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span> <span class="o">|</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Get the number of observations from a DataFrame or Series.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        x : pd.DataFrame or pd.Series</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        int</span>
+<span class="sd">            The number of rows (observations).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span></div>
+
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_print</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>  
+    
+    
+<div class="viewcode-block" id="NodeData.get_split_var">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.node_data.NodeData.get_split_var">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_split_var</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">print</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">split_var</span></div>
+
+    
+    
+<div class="viewcode-block" id="NodeData.get_split_set">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.node_data.NodeData.get_split_set">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_split_set</span><span class="p">[</span><span class="n">T</span><span class="p">](</span><span class="bp">self</span><span class="p">,</span> <span class="nb">print</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">T</span><span class="p">]</span> <span class="o">|</span> <span class="n">T</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Get the splitting value(s) for this node.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        print : bool, optional</span>
+<span class="sd">            If True, return a formatted string description (default is False).</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        Sequence[T] or T</span>
+<span class="sd">            The splitting value(s) or a description thereof.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">print</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">split_set</span> <span class="c1"># type: ignore</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_cat_split</span><span class="p">:</span>
+                <span class="k">return</span> <span class="sa">f</span><span class="s1">&#39;in </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">split_set</span><span class="si">}</span><span class="s1">&#39;</span> <span class="c1"># type: ignore</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="sa">f</span><span class="s1">&#39;&lt; </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">split_set</span><span class="si">}</span><span class="s1">&#39;</span> <span class="c1"># type: ignore</span></div>
+
+            
+            
+<div class="viewcode-block" id="NodeData.get_available_splits">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.node_data.NodeData.get_available_splits">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_available_splits</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">force_eval</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">assert_cached</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">T</span><span class="p">]],</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">bool</span><span class="p">]]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        For each feature in X, return the available unique splits.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        force_eval : bool, optional</span>
+<span class="sd">            If True, force re-evaluation of available splits (default is False).</span>
+<span class="sd">        assert_cached : bool, optional</span>
+<span class="sd">            If True, raise an error if a cached value is not available (default is False).</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        tuple</span>
+<span class="sd">            A tuple containing:</span>
+<span class="sd">              - A dictionary mapping feature names to sorted unique available split values.</span>
+<span class="sd">              - A dictionary mapping feature names to booleans indicating if the feature is categorical.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">avail_splits</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">force_eval</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">avail_splits</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">assert_cached</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;No cached value of available splits&#39;</span><span class="p">)</span>
+            <span class="n">is_cat</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="n">X</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">X</span>
+            <span class="n">avail_vars</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="k">for</span> <span class="n">col_name</span> <span class="ow">in</span> <span class="n">X</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+                <span class="n">col</span> <span class="o">=</span> <span class="n">X</span><span class="p">[</span><span class="n">col_name</span><span class="p">]</span>
+                <span class="n">avail_splits</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">col</span><span class="p">)</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">avail_splits</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="mi">2</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_categorical</span><span class="p">(</span><span class="n">col</span><span class="p">):</span>
+                        <span class="n">avail_vars</span><span class="p">[</span><span class="n">col_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">avail_splits</span>
+                        <span class="n">is_cat</span><span class="p">[</span><span class="n">col_name</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">avail_vars</span><span class="p">[</span><span class="n">col_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">avail_splits</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span>
+                        <span class="n">is_cat</span><span class="p">[</span><span class="n">col_name</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">avail_splits</span> <span class="o">=</span> <span class="n">avail_vars</span><span class="p">,</span> <span class="n">is_cat</span>
+        <span class="k">return</span> <span class="n">avail_vars</span><span class="p">,</span> <span class="n">is_cat</span></div>
+
+
+<div class="viewcode-block" id="NodeData.reset_avail_splits">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.node_data.NodeData.reset_avail_splits">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">reset_avail_splits</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Reset the cached available splits. Necessary whenever the underlying dataset changes</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">avail_splits</span> <span class="o">=</span> <span class="kc">None</span></div>
+
+
+<div class="viewcode-block" id="NodeData.sample_split">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.node_data.NodeData.sample_split">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">sample_split</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">split_var</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">avail_vals</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">T</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">bool</span><span class="p">,</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">T</span><span class="p">]</span><span class="o">|</span><span class="n">T</span><span class="p">]:</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">is_cat</span><span class="o">:=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_categorical</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">X</span><span class="p">[</span><span class="n">split_var</span><span class="p">])):</span>
+            <span class="n">split_vals</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sample_cat_split_subset</span><span class="p">(</span><span class="n">avail_vals</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">split_vals</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rng</span><span class="o">.</span><span class="n">choice</span><span class="p">(</span><span class="n">avail_vals</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">is_cat</span><span class="p">,</span> <span class="n">split_vals</span></div>
+
+        
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_sample_cat_split_subset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">split_vals</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">T</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">T</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Sample a random subset of the available split values for a categorical variable.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        split_vals : Sequence[T]</span>
+<span class="sd">            The available split values.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        Sequence[T]</span>
+<span class="sd">            A sorted array of sampled split values.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># enumerating all subsets and then choosing one is too much. So compute the probability of picking</span>
+        <span class="c1"># a subset of size k, among all possible subsets, then with such probabilities sample</span>
+        <span class="c1"># a subset size. Finally, sample k values out the available ones, at random.</span>
+        
+        <span class="c1"># make sure you exclude subsets of size n because they don&#39;t produce available splits!</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">split_vals</span><span class="p">)</span> <span class="o">==</span>  <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">split_vals</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">split_vals</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>
+        <span class="n">cases</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">comb</span><span class="p">(</span><span class="n">n</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="n">x</span><span class="p">),</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">n</span><span class="o">+</span><span class="mi">1</span><span class="p">)))</span>
+        <span class="n">k</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rng</span><span class="o">.</span><span class="n">choice</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">n</span><span class="o">+</span><span class="mi">1</span><span class="p">),</span> <span class="n">p</span><span class="o">=</span><span class="n">cases</span><span class="o">/</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">cases</span><span class="p">))</span>
+        <span class="n">idx</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rng</span><span class="o">.</span><span class="n">choice</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">split_vals</span><span class="p">),</span> <span class="n">size</span><span class="o">=</span><span class="n">k</span><span class="p">,</span> <span class="n">replace</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+        <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">split_vals</span><span class="p">[</span><span class="n">idx</span><span class="p">])</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">split_vals</span><span class="p">)</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="n">split_vals</span><span class="p">[</span><span class="n">idx</span><span class="p">]))</span> <span class="o">&gt;</span> <span class="mi">0</span>
+
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">split_vals</span><span class="p">[</span><span class="n">idx</span><span class="p">])</span> <span class="c1"># type: ignore</span>
+    
+<div class="viewcode-block" id="NodeData.calc_avail_split_and_vars">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.node_data.NodeData.calc_avail_split_and_vars">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">calc_avail_split_and_vars</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Compute the number of available variables and the number of available splits for the current split variable.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        tuple</span>
+<span class="sd">            A tuple (n_avail_vars, n_splits).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">avail_vars</span><span class="p">,</span> <span class="n">is_cat</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_available_splits</span><span class="p">()</span>
+        <span class="n">n_avail_vars</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">avail_vars</span><span class="p">)</span>
+        <span class="n">split_var</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_split_var</span><span class="p">()</span>
+        <span class="n">split_vals</span> <span class="o">=</span> <span class="n">avail_vars</span><span class="p">[</span><span class="n">split_var</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">is_cat</span><span class="p">[</span><span class="n">split_var</span><span class="p">]:</span>
+            <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">split_vals</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>
+            <span class="n">cases</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">comb</span><span class="p">(</span><span class="n">n</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="n">x</span><span class="p">),</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">n</span><span class="o">+</span><span class="mi">1</span><span class="p">)))</span>
+            <span class="n">n_splits</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">cases</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">n_splits</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">split_vals</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">n_avail_vars</span><span class="p">,</span> <span class="n">n_splits</span></div>
+
+        
+
+<div class="viewcode-block" id="NodeData.get_split_data">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.node_data.NodeData.get_split_data">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_split_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">split_var</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">split_val</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">T</span><span class="p">]</span> <span class="o">|</span> <span class="n">T</span><span class="p">,</span> <span class="n">left_params</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">right_params</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Self</span><span class="p">,</span> <span class="n">Self</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Split the current node&#39;s data into two subsets (left and right) based on a given split rule</span>
+<span class="sd">        and generate new NodeData objects for the children.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        split_var : str</span>
+<span class="sd">            The feature on which to split.</span>
+<span class="sd">        split_val : Sequence[T] or T</span>
+<span class="sd">            The split value(s).</span>
+<span class="sd">        left_params : Any</span>
+<span class="sd">            Parameters for the left child.</span>
+<span class="sd">        right_params : Any</span>
+<span class="sd">            Parameters for the right child.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        tuple</span>
+<span class="sd">            A tuple (l_node_data, r_node_data) corresponding to the left and right NodeData objects.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        AbstractMethodError</span>
+<span class="sd">            Always raised; this method should be implemented in a subclass.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">raise</span> <span class="n">AbstractMethodError</span><span class="p">()</span></div>
+
+    
+    
+<div class="viewcode-block" id="NodeData.get_data_split">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.node_data.NodeData.get_data_split">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_data_split</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">split_var</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">split_val</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">T</span><span class="p">]</span> <span class="o">|</span> <span class="n">T</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">,</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Split the data into left and right subsets based on the split rule. Returns the left and right data subsets.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        split_var : str</span>
+<span class="sd">            The feature on which to split.</span>
+<span class="sd">        split_val : Sequence[T] or T</span>
+<span class="sd">            The split value(s).</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        tuple</span>
+<span class="sd">            A tuple (left_X, right_X, left_y, right_y).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">X</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">X</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">y</span>
+        <span class="k">if</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_is_categorical</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">X</span><span class="p">[</span><span class="n">split_var</span><span class="p">])):</span>
+            <span class="n">mask</span> <span class="o">=</span> <span class="n">X</span><span class="p">[</span><span class="n">split_var</span><span class="p">]</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">split_val</span><span class="p">)</span> <span class="c1"># type: ignore</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">mask</span> <span class="o">=</span> <span class="n">X</span><span class="p">[</span><span class="n">split_var</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">split_val</span>
+        <span class="n">left_X</span> <span class="o">=</span> <span class="n">X</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">mask</span><span class="p">,:]</span>
+        <span class="n">right_X</span> <span class="o">=</span> <span class="n">X</span><span class="p">[</span><span class="o">~</span><span class="n">mask</span><span class="p">]</span>
+        <span class="n">left_y</span> <span class="o">=</span> <span class="n">y</span><span class="p">[</span><span class="n">mask</span><span class="p">]</span>
+        <span class="n">right_y</span> <span class="o">=</span> <span class="n">y</span><span class="p">[</span><span class="o">~</span><span class="n">mask</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">left_X</span><span class="p">,</span> <span class="n">right_X</span><span class="p">,</span> <span class="n">left_y</span><span class="p">,</span> <span class="n">right_y</span></div>
+
+
+
+<div class="viewcode-block" id="NodeData.update_split_info">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.node_data.NodeData.update_split_info">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">update_split_info</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">split_var</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">split_val</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">T</span><span class="p">]</span> <span class="o">|</span> <span class="n">T</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">split_var</span> <span class="o">=</span> <span class="n">split_var</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">split_set</span> <span class="o">=</span> <span class="n">split_val</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">is_cat_split</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_categorical</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">X</span><span class="p">[</span><span class="n">split_var</span><span class="p">])</span></div>
+
+
+<div class="viewcode-block" id="NodeData.reset_split_info">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.node_data.NodeData.reset_split_info">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">reset_split_info</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">split_var</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">split_set</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">is_cat_split</span> <span class="o">=</span> <span class="kc">False</span></div>
+
+
+<div class="viewcode-block" id="NodeData.update_split_data">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.node_data.NodeData.update_split_data">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">update_split_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">X</span> <span class="o">=</span> <span class="n">X</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">y</span> <span class="o">=</span> <span class="n">y</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">reset_avail_splits</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="NodeData.is_split_rule_emtpy">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.node_data.NodeData.is_split_rule_emtpy">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">is_split_rule_emtpy</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">split_var</span> <span class="o">==</span> <span class="s1">&#39;&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">split_set</span> <span class="o">==</span> <span class="s1">&#39;&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">is_cat_split</span> <span class="o">==</span> <span class="kc">False</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="NodeData.get_params">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.node_data.NodeData.get_params">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_params</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">print</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Retrieve the node-specific parameters (e.g., mu and sigma for regression, or p for classification).</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        print : bool, optional</span>
+<span class="sd">            If True, return a formatted string (default is False).</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        Any</span>
+<span class="sd">            The node parameters.</span>
+<span class="sd">        </span>
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        AbstractMethodError</span>
+<span class="sd">            Always raised; should be implemented in a subclass.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">raise</span> <span class="n">AbstractMethodError</span><span class="p">()</span></div>
+
+    
+<div class="viewcode-block" id="NodeData.count_values">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.node_data.NodeData.count_values">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">count_values</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">NDArrayInt</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Compute the number of observations per class (classification only).</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        NDArrayInt</span>
+<span class="sd">            Array of counts for each class.</span>
+<span class="sd">        </span>
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        AbstractMethodError</span>
+<span class="sd">            Always raised; should be implemented in a subclass.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">raise</span> <span class="n">AbstractMethodError</span><span class="p">()</span></div>
+
+    
+<div class="viewcode-block" id="NodeData.get_data_averages">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.node_data.NodeData.get_data_averages">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_data_averages</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Compute the number of observations, the mean, and un-normalized variance (regression only).</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        tuple</span>
+<span class="sd">            (n, mean, un-normalized variance)</span>
+<span class="sd">        </span>
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        AbstractMethodError</span>
+<span class="sd">            Always raised; should be implemented in a subclass.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">raise</span> <span class="n">AbstractMethodError</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="NodeData.update_node_params">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.node_data.NodeData.update_node_params">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">update_node_params</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">params</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="n">NDArrayFloat</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Update the node parameters with new values.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        params : tuple[float, float] or NDArrayFloat</span>
+<span class="sd">            The new parameter values.</span>
+<span class="sd">        </span>
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        AbstractMethodError</span>
+<span class="sd">            Always raised; should be implemented in a subclass.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">raise</span> <span class="n">AbstractMethodError</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="NodeData.get_preds">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.node_data.NodeData.get_preds">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_preds</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">NDArrayFloat</span><span class="p">,</span> <span class="nb">float</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Compute the model predictions (e.g., posterior mean).</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        tuple</span>
+<span class="sd">            A tuple (indices, predictions).</span>
+<span class="sd">        </span>
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        AbstractMethodError</span>
+<span class="sd">            Always raised; should be implemented in a subclass.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">raise</span> <span class="n">AbstractMethodError</span><span class="p">()</span></div>
+</div>
+
+
+
+
+<div class="viewcode-block" id="NodeDataRegression">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.node_data.NodeDataRegression">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">NodeDataRegression</span><span class="p">(</span><span class="n">NodeData</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Node data class for regression trees.</span>
+
+<span class="sd">    Attributes</span>
+<span class="sd">    ----------</span>
+<span class="sd">    mu : float</span>
+<span class="sd">        The mean parameter.</span>
+<span class="sd">    sigma : float</span>
+<span class="sd">        The standard deviation parameter.</span>
+<span class="sd">    &quot;&quot;&quot;</span> 
+    <span class="c1"># @wraps(NodeData.__init__)</span>
+<div class="viewcode-block" id="NodeDataRegression.__init__">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.node_data.NodeDataRegression.__init__">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mu</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">sigma</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mu</span> <span class="o">=</span> <span class="n">mu</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sigma</span> <span class="o">=</span> <span class="n">sigma</span></div>
+
+
+    
+<div class="viewcode-block" id="NodeDataRegression.get_mu">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.node_data.NodeDataRegression.get_mu">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_mu</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">print</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">mu</span> <span class="k">if</span> <span class="ow">not</span> <span class="nb">print</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">mu</span><span class="p">)</span></div>
+
+    
+
+<div class="viewcode-block" id="NodeDataRegression.get_sigma">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.node_data.NodeDataRegression.get_sigma">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_sigma</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">print</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">sigma</span> <span class="k">if</span> <span class="ow">not</span> <span class="nb">print</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sigma</span><span class="p">)</span></div>
+
+    
+    
+<div class="viewcode-block" id="NodeDataRegression.get_params">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.node_data.NodeDataRegression.get_params">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_params</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">print</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span><span class="o">|</span><span class="nb">str</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">print</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">mu</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">sigma</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">get_mu</span><span class="p">(</span><span class="nb">print</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="si">}</span><span class="s1"> </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">get_sigma</span><span class="p">(</span><span class="nb">print</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="si">}</span><span class="s1">&#39;</span></div>
+
+        
+
+<div class="viewcode-block" id="NodeDataRegression.get_split_data">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.node_data.NodeDataRegression.get_split_data">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_split_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">split_var</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">split_val</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">T</span><span class="p">]</span> <span class="o">|</span> <span class="n">T</span><span class="p">,</span> <span class="n">left_params</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span><span class="nb">float</span><span class="p">],</span> <span class="n">right_params</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span><span class="nb">float</span><span class="p">]):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Split the data for regression and generate new NodeDataRegression objects for the left and right children.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        split_var : str</span>
+<span class="sd">            The feature to split on.</span>
+<span class="sd">        split_val : Sequence[T] or T</span>
+<span class="sd">            The splitting threshold (or set).</span>
+<span class="sd">        left_params : tuple[float, float]</span>
+<span class="sd">            Parameters (mu, sigma) for the left child.</span>
+<span class="sd">        right_params : tuple[float, float]</span>
+<span class="sd">            Parameters (mu, sigma) for the right child.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        tuple</span>
+<span class="sd">            (l_node_data, r_node_data)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">left_X</span><span class="p">,</span> <span class="n">right_X</span><span class="p">,</span> <span class="n">left_y</span><span class="p">,</span> <span class="n">right_y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_data_split</span><span class="p">(</span><span class="n">split_var</span><span class="p">,</span> <span class="n">split_val</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">debug</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">left_params</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span>
+            <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">right_params</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span>
+        <span class="n">mu_l</span><span class="p">,</span> <span class="n">sigma_l</span> <span class="o">=</span> <span class="n">left_params</span>
+        <span class="n">mu_r</span><span class="p">,</span> <span class="n">sigma_r</span> <span class="o">=</span> <span class="n">right_params</span>
+
+        <span class="c1"># With this construction it behaves properly with subclasses</span>
+        <span class="n">l_node_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="p">(</span><span class="n">X</span><span class="o">=</span><span class="n">left_X</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="n">left_y</span><span class="p">,</span> <span class="n">mu</span><span class="o">=</span><span class="n">mu_l</span><span class="p">,</span> <span class="n">sigma</span><span class="o">=</span><span class="n">sigma_l</span><span class="p">,</span> <span class="n">rng</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">rng</span><span class="p">,</span> <span class="n">debug</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">debug</span><span class="p">,</span> <span class="n">node_min_size</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">node_min_size</span><span class="p">)</span>
+        <span class="n">r_node_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="p">(</span><span class="n">X</span><span class="o">=</span><span class="n">right_X</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="n">right_y</span><span class="p">,</span> <span class="n">mu</span><span class="o">=</span><span class="n">mu_r</span><span class="p">,</span> <span class="n">sigma</span><span class="o">=</span><span class="n">sigma_r</span><span class="p">,</span> <span class="n">rng</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">rng</span><span class="p">,</span> <span class="n">debug</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">debug</span><span class="p">,</span> <span class="n">node_min_size</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">node_min_size</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">l_node_data</span><span class="p">,</span> <span class="n">r_node_data</span></div>
+
+    
+<div class="viewcode-block" id="NodeDataRegression.get_data_averages">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.node_data.NodeDataRegression.get_data_averages">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_data_averages</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Compute the number of observations, mean, and un-normalized variance for regression.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        tuple</span>
+<span class="sd">            (n, mean, uvar)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_nobs</span><span class="p">()</span>
+        <span class="n">mean</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+        <span class="n">uvar</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="o">-</span><span class="n">mean</span><span class="p">)</span><span class="o">.</span><span class="n">pow</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> 
+        <span class="k">return</span> <span class="n">n</span><span class="p">,</span> <span class="n">mean</span><span class="p">,</span> <span class="n">uvar</span></div>
+
+
+<div class="viewcode-block" id="NodeDataRegression.update_node_params">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.node_data.NodeDataRegression.update_node_params">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">update_node_params</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">params</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="n">NDArrayFloat</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mu</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">sigma</span> <span class="o">=</span> <span class="n">params</span></div>
+
+
+<div class="viewcode-block" id="NodeDataRegression.get_preds">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.node_data.NodeDataRegression.get_preds">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_preds</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">NDArrayFloat</span><span class="p">,</span> <span class="nb">float</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Get predictions for regression.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        tuple</span>
+<span class="sd">            (indices, predicted constant value equal to mu)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">idx</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">idx</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_mu</span><span class="p">()</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="NodeDataClassification">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.node_data.NodeDataClassification">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">NodeDataClassification</span><span class="p">(</span><span class="n">NodeData</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Node data class for classification trees.</span>
+
+<span class="sd">    Attributes</span>
+<span class="sd">    ----------</span>
+<span class="sd">    p : NDArrayFloat</span>
+<span class="sd">        The probability vector for the classes.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># @wraps(NodeData.__init__)</span>
+<div class="viewcode-block" id="NodeDataClassification.__init__">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.node_data.NodeDataClassification.__init__">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p</span><span class="p">:</span> <span class="n">NDArrayFloat</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">p</span> <span class="o">=</span> <span class="n">p</span></div>
+
+
+<div class="viewcode-block" id="NodeDataClassification.get_params">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.node_data.NodeDataClassification.get_params">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_params</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">print</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">NDArrayFloat</span><span class="o">|</span><span class="nb">str</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">print</span><span class="p">:</span>
+            <span class="k">return</span> <span class="s1">&#39;&#39;</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">p</span></div>
+
+    
+<div class="viewcode-block" id="NodeDataClassification.get_split_data">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.node_data.NodeDataClassification.get_split_data">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_split_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">split_var</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">split_val</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">T</span><span class="p">]</span> <span class="o">|</span> <span class="n">T</span><span class="p">,</span> <span class="n">left_params</span><span class="p">:</span> <span class="n">NDArrayFloat</span><span class="p">,</span> <span class="n">right_params</span><span class="p">:</span> <span class="n">NDArrayFloat</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Split the data for classification and generate new NodeDataClassification objects.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        split_var : str</span>
+<span class="sd">            The feature to split on.</span>
+<span class="sd">        split_val : Sequence[T] or T</span>
+<span class="sd">            The splitting rule.</span>
+<span class="sd">        left_params : NDArrayFloat</span>
+<span class="sd">            New class probability vector for the left child.</span>
+<span class="sd">        right_params : NDArrayFloat</span>
+<span class="sd">            New class probability vector for the right child.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        tuple</span>
+<span class="sd">            (l_node_data, r_node_data)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">left_X</span><span class="p">,</span> <span class="n">right_X</span><span class="p">,</span> <span class="n">left_y</span><span class="p">,</span> <span class="n">right_y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_data_split</span><span class="p">(</span><span class="n">split_var</span><span class="p">,</span> <span class="n">split_val</span><span class="p">)</span>
+
+
+        <span class="n">l_node_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="p">(</span><span class="n">X</span><span class="o">=</span><span class="n">left_X</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="n">left_y</span><span class="p">,</span> <span class="n">p</span><span class="o">=</span><span class="n">left_params</span><span class="p">,</span> <span class="n">rng</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">rng</span><span class="p">,</span> <span class="n">debug</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">debug</span><span class="p">,</span> <span class="n">node_min_size</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">node_min_size</span><span class="p">)</span>
+        <span class="n">r_node_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="p">(</span><span class="n">X</span><span class="o">=</span><span class="n">right_X</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="n">right_y</span><span class="p">,</span> <span class="n">p</span><span class="o">=</span><span class="n">right_params</span><span class="p">,</span> <span class="n">rng</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">rng</span><span class="p">,</span> <span class="n">debug</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">debug</span><span class="p">,</span> <span class="n">node_min_size</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">node_min_size</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">l_node_data</span><span class="p">,</span> <span class="n">r_node_data</span></div>
+
+    
+<div class="viewcode-block" id="NodeDataClassification.count_values">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.node_data.NodeDataClassification.count_values">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">count_values</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">NDArrayInt</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="o">.</span><span class="n">value_counts</span><span class="p">(</span><span class="n">sort</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()</span></div>
+
+    
+<div class="viewcode-block" id="NodeDataClassification.update_node_params">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.node_data.NodeDataClassification.update_node_params">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">update_node_params</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">params</span><span class="p">:</span> <span class="n">NDArrayFloat</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">p</span> <span class="o">=</span> <span class="n">params</span></div>
+</div>
+
+
+    
+<div class="viewcode-block" id="NodeDataFast">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.node_data.NodeDataFast">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">NodeDataFast</span><span class="p">(</span><span class="n">NodeData</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Efficient implementation of NodeData, reduces the cost of copy operations.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+<div class="viewcode-block" id="NodeDataFast.copy">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.node_data.NodeDataFast.copy">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">copy</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">light</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">no_data</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">memo</span><span class="p">:</span> <span class="nb">dict</span><span class="o">|</span><span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s1">&#39;NodeData&#39;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39; Instead of thoroughly copying the object, just copy what we know we need.&#39;&#39;&#39;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">light</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">light</span><span class="o">=</span><span class="n">light</span><span class="p">,</span> <span class="n">no_data</span><span class="o">=</span><span class="n">no_data</span><span class="p">,</span> <span class="n">memo</span><span class="o">=</span><span class="n">memo</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">cls</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">)</span>
+            <span class="n">result</span><span class="o">.</span><span class="n">node_min_size</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">node_min_size</span>
+            <span class="n">result</span><span class="o">.</span><span class="n">debug</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">debug</span>
+            <span class="n">result</span><span class="o">.</span><span class="n">split_var</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">split_var</span>
+            <span class="n">result</span><span class="o">.</span><span class="n">split_set</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">split_set</span>
+            <span class="n">result</span><span class="o">.</span><span class="n">is_cat_split</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_cat_split</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">no_data</span><span class="p">:</span>
+                <span class="n">result</span><span class="o">.</span><span class="n">rng</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rng</span>
+                <span class="n">result</span><span class="o">.</span><span class="n">avail_splits</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">avail_splits</span>
+                <span class="n">result</span><span class="o">.</span><span class="n">_X</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_X</span>
+                <span class="n">result</span><span class="o">.</span><span class="n">_y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_y</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">result</span><span class="o">.</span><span class="n">nobs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_nobs</span><span class="p">()</span> <span class="c1"># type: ignore</span>
+                <span class="n">result</span><span class="o">.</span><span class="n">avail_splits</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="k">return</span> <span class="n">result</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="NodeDataRegressionFast">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.node_data.NodeDataRegressionFast">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">NodeDataRegressionFast</span><span class="p">(</span><span class="n">NodeDataFast</span><span class="p">,</span> <span class="n">NodeDataRegression</span><span class="p">):</span>
+<div class="viewcode-block" id="NodeDataRegressionFast.copy">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.node_data.NodeDataRegressionFast.copy">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">copy</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="n">result</span><span class="o">.</span><span class="n">mu</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mu</span>  <span class="c1"># type: ignore</span>
+        <span class="n">result</span><span class="o">.</span><span class="n">sigma</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sigma</span> <span class="c1"># type: ignore</span>
+        <span class="k">return</span> <span class="n">result</span></div>
+
+    
+<div class="viewcode-block" id="NodeDataRegressionFast.get_data_averages">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.node_data.NodeDataRegressionFast.get_data_averages">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_data_averages</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Compute the number of observations, mean, and un-normalized variance using fast routines.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        tuple</span>
+<span class="sd">            (n, mean, uvar)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="n">y</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">mean</span> <span class="o">=</span> <span class="n">y</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+        <span class="n">uvar</span> <span class="o">=</span> <span class="p">((</span><span class="n">y</span><span class="o">-</span><span class="n">mean</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> 
+        <span class="k">return</span> <span class="n">n</span><span class="p">,</span> <span class="n">mean</span><span class="p">,</span> <span class="n">uvar</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="NodeDataClassificationFast">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.node_data.NodeDataClassificationFast">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">NodeDataClassificationFast</span><span class="p">(</span><span class="n">NodeDataFast</span><span class="p">,</span> <span class="n">NodeDataClassification</span><span class="p">):</span>
+<div class="viewcode-block" id="NodeDataClassificationFast.copy">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.node_data.NodeDataClassificationFast.copy">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">copy</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">NodeDataFast</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="n">result</span><span class="o">.</span><span class="n">p</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">p</span> <span class="c1"># type: ignore</span>
+        <span class="k">return</span> <span class="n">result</span></div>
+</div>
+
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Guglielmo Gattiglio.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -1,0 +1,30 @@
+[project]
+name = "bayescart"
+version = "0.1.0"
+description = "A package for Bayesian Classification and Regression Trees (CART) posterior sampling using custom, advanced tempering methods"
+authors = [
+    {name = "Guglielmo Gattiglio",email = "g.gattiglio@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "treelib (>=1.7.0,<2.0.0)",
+    "numpy (>=2.2.2,<3.0.0)",
+    "joblib (>=1.4.2,<2.0.0)",
+    "matplotlib (>=3.10.0,<4.0.0)",
+    "scipy (>=1.15.1,<2.0.0)",
+    "pandas (>=2.2.3,<3.0.0)",
+    "tqdm (>=4.67.1,<5.0.0)",
+    "humanize (>=4.11.0,<5.0.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.group.dev.dependencies]
+sphinx = "^8.1.3"
+sphinx-rtd-theme = "^3.0.2"
+sphinx-autodoc-typehints = "^3.0.1"
+

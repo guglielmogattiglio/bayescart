@@ -1,0 +1,812 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>bayescart.tree &mdash; bayescart  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            bayescart
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../modules.html">bayescart</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">bayescart</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">bayescart.tree</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for bayescart.tree</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Tree class for bayescart.</span>
+
+<span class="sd">This module defines the Tree class that extends treelib&#39;s Tree to support operations</span>
+<span class="sd">needed for Bayesian CART such as applying splits, copying subtrees, and computing</span>
+<span class="sd">prior probabilities.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">treelib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Tree</span> <span class="k">as</span> <span class="n">TreelibTree</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sequence</span><span class="p">,</span> <span class="n">Self</span><span class="p">,</span> <span class="n">Any</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">copy</span><span class="w"> </span><span class="kn">import</span> <span class="n">deepcopy</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.node</span><span class="w"> </span><span class="kn">import</span> <span class="n">Node</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.node_data</span><span class="w"> </span><span class="kn">import</span> <span class="n">NodeData</span><span class="p">,</span> <span class="n">NodeDataClassification</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.mytyping</span><span class="w"> </span><span class="kn">import</span> <span class="n">T</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.exceptions</span><span class="w"> </span><span class="kn">import</span> <span class="n">InvalidTreeError</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">my_choice</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.node</span><span class="w"> </span><span class="kn">import</span> <span class="n">NodeFast</span>
+
+<div class="viewcode-block" id="Tree">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.tree.Tree">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">Tree</span><span class="p">(</span><span class="n">TreelibTree</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Extended tree class for Bayesian CART that builds on the treelib Tree.</span>
+
+<span class="sd">    This class maintains a counter for node IDs and provides additional methods for </span>
+<span class="sd">    sampling leaves, copying trees, and applying splits.</span>
+<span class="sd">    </span>
+<span class="sd">    Attributes</span>
+<span class="sd">    ----------</span>
+<span class="sd">    id_counter : int</span>
+<span class="sd">        Counter for unique node identifiers.</span>
+<span class="sd">    rng : np.random.Generator</span>
+<span class="sd">        Random generator used for sampling.</span>
+<span class="sd">    node_min_size : int</span>
+<span class="sd">        Minimum number of observations per node.</span>
+<span class="sd">    debug : bool</span>
+<span class="sd">        If True, enables additional assertions.</span>
+<span class="sd">    llik : float or None</span>
+<span class="sd">        Cached integrated log-likelihood of the tree.</span>
+<span class="sd">    log_tree_prior_prob : float or None</span>
+<span class="sd">        Cached log prior probability of the tree.</span>
+<span class="sd">    temperature : float</span>
+<span class="sd">        The current temperature for tempering.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">node_class</span> <span class="o">=</span> <span class="n">Node</span>
+<div class="viewcode-block" id="Tree.__init__">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.tree.Tree.__init__">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root_node_data</span><span class="p">:</span> <span class="n">NodeData</span><span class="p">,</span> <span class="n">rng</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">Generator</span><span class="p">,</span>
+                 <span class="n">node_min_size</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">debug</span><span class="p">:</span> <span class="nb">bool</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">node_class</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">node_class</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">id_counter</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rng</span> <span class="o">=</span> <span class="n">rng</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">node_min_size</span> <span class="o">=</span> <span class="n">node_min_size</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">debug</span> <span class="o">=</span> <span class="n">debug</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">llik</span><span class="p">:</span> <span class="nb">float</span><span class="o">|</span><span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">log_tree_prior_prob</span><span class="p">:</span> <span class="nb">float</span><span class="o">|</span><span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">temperature</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span><span class="n">root_node_data</span><span class="p">,</span> <span class="n">is_l</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></div>
+
+           
+
+
+<div class="viewcode-block" id="Tree.add_node">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.tree.Tree.add_node">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_node</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">NodeData</span><span class="p">,</span> <span class="n">is_l</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span> <span class="n">parent</span><span class="p">:</span> <span class="n">Node</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Node</span><span class="p">:</span>
+        <span class="n">node</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">node_class</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">id_counter</span><span class="p">,</span> <span class="n">is_l</span><span class="o">=</span><span class="n">is_l</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">data</span><span class="p">,</span> <span class="n">rng</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">rng</span><span class="p">,</span> <span class="n">debug</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">debug</span><span class="p">)</span>
+        <span class="n">node</span><span class="o">.</span><span class="n">depth</span> <span class="o">=</span> <span class="mi">0</span> <span class="k">if</span> <span class="n">parent</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">parent</span><span class="o">.</span><span class="n">depth</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">parent</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">id_counter</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">return</span> <span class="n">node</span></div>
+
+
+
+<div class="viewcode-block" id="Tree.sample_leaf">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.tree.Tree.sample_leaf">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">sample_leaf</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node_min_size</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Node</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Sample a leaf node at random from the tree that has at least node_min_size observations.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        node_min_size : int</span>
+<span class="sd">            Minimum required observations.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        Node</span>
+<span class="sd">            A randomly chosen leaf node.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        InvalidTreeError</span>
+<span class="sd">            If no leaf with sufficient observations is found.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">leaves</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_leaves</span><span class="p">()</span>
+        <span class="n">leaves_sizes</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">node</span><span class="o">.</span><span class="n">get_nobs</span><span class="p">()</span> <span class="k">for</span> <span class="n">node</span> <span class="ow">in</span> <span class="n">leaves</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int_</span><span class="p">)</span>
+
+        <span class="n">p</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">leaves_sizes</span> <span class="o">&gt;=</span> <span class="n">node_min_size</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">InvalidTreeError</span><span class="p">(</span><span class="s1">&#39;No valid leaf to split due to min node size constraint&#39;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">res</span> <span class="o">=</span> <span class="n">my_choice</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rng</span><span class="p">,</span> <span class="n">leaves</span><span class="p">,</span> <span class="n">p</span><span class="o">=</span><span class="n">p</span><span class="o">/</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">p</span><span class="p">))</span>
+            <span class="k">return</span> <span class="n">res</span></div>
+
+        
+
+<div class="viewcode-block" id="Tree.get_leaves">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.tree.Tree.get_leaves">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_leaves</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Node</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return all the leaf nodes of the tree.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        list</span>
+<span class="sd">            A list of leaf nodes.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">leaves</span><span class="p">()</span></div>
+
+    
+<div class="viewcode-block" id="Tree.get_n_leaves">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.tree.Tree.get_n_leaves">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_n_leaves</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Get the number of leaf nodes.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        int</span>
+<span class="sd">            The count of leaves.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_leaves</span><span class="p">())</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">__deepcopy__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">memo</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">light</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">memo</span><span class="o">=</span><span class="n">memo</span><span class="p">)</span>
+
+<div class="viewcode-block" id="Tree.copy">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.tree.Tree.copy">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">copy</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">light</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">no_data</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">memo</span><span class="p">:</span> <span class="nb">dict</span><span class="o">|</span><span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s1">&#39;Tree&#39;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;Deep copy the tree with all node info. If light, don&#39;t deep-copy (X,y) at each node.&#39;&#39;&#39;</span>
+        <span class="k">if</span> <span class="n">memo</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">memo</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">cls</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__dict__</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">k</span> <span class="o">==</span> <span class="s1">&#39;_nodes&#39;</span><span class="p">:</span>
+                <span class="n">_nodes</span> <span class="o">=</span> <span class="p">{}</span>
+                <span class="k">for</span> <span class="n">nid</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_nodes</span><span class="p">:</span>
+                    <span class="n">_nodes</span><span class="p">[</span><span class="n">nid</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_nodes</span><span class="p">[</span><span class="n">nid</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">light</span><span class="o">=</span><span class="n">light</span><span class="p">,</span> <span class="n">no_data</span><span class="o">=</span><span class="n">no_data</span><span class="p">,</span> <span class="n">memo</span><span class="o">=</span><span class="n">memo</span><span class="p">)</span>
+                <span class="nb">setattr</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">_nodes</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">k</span> <span class="o">==</span> <span class="s1">&#39;rng&#39;</span><span class="p">:</span>
+                <span class="nb">setattr</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="nb">setattr</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">memo</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">result</span></div>
+
+
+
+<div class="viewcode-block" id="Tree.is_valid">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.tree.Tree.is_valid">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">is_valid</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Check whether the tree is valid.</span>
+
+<span class="sd">        The function recursively checks each node for logical consistency of splits,</span>
+<span class="sd">        data assignments, and node properties.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        bool</span>
+<span class="sd">            True if the tree passes all validity checks.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">def</span><span class="w"> </span><span class="nf">is_valid_node</span><span class="p">(</span><span class="n">node</span><span class="p">:</span> <span class="n">Node</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">_is_valid_node</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="n">node</span><span class="o">.</span><span class="n">_gen_tags</span><span class="p">()</span>
+                <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Error in node </span><span class="si">{</span><span class="n">node</span><span class="o">.</span><span class="n">tag</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+                <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Error in node </span><span class="si">{</span><span class="n">node</span><span class="o">.</span><span class="n">tag</span><span class="si">}</span><span class="s1">, </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s1">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">e</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">_is_valid_node</span><span class="p">(</span><span class="n">node</span><span class="p">:</span> <span class="n">Node</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+            <span class="n">children</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_children</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">node</span><span class="o">.</span><span class="n">is_leaf</span><span class="p">():</span>
+                <span class="c1"># if not leaf must have two children</span>
+                <span class="k">assert</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">children</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">)</span> 
+
+                <span class="c1"># first child is left, second is right</span>
+                <span class="n">l_child</span><span class="p">,</span> <span class="n">r_child</span> <span class="o">=</span> <span class="n">children</span>
+                <span class="k">assert</span> <span class="n">l_child</span><span class="o">.</span><span class="n">is_l</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">r_child</span><span class="o">.</span><span class="n">is_l</span>
+
+                <span class="c1"># check that we have the right split</span>
+                <span class="n">split_var</span><span class="p">,</span> <span class="n">split_val</span><span class="p">,</span> <span class="n">is_cat</span> <span class="o">=</span> <span class="n">node</span><span class="o">.</span><span class="n">get_split_info</span><span class="p">()</span>
+                <span class="n">left_X</span><span class="p">,</span> <span class="n">right_X</span><span class="p">,</span> <span class="n">left_y</span><span class="p">,</span> <span class="n">right_y</span> <span class="o">=</span> <span class="n">node</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">get_data_split</span><span class="p">(</span><span class="n">split_var</span><span class="p">,</span> <span class="n">split_val</span><span class="p">)</span>
+                <span class="k">assert</span> <span class="n">left_X</span><span class="o">.</span><span class="n">equals</span><span class="p">(</span><span class="n">l_child</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">X</span><span class="p">)</span> <span class="ow">and</span> <span class="n">right_X</span><span class="o">.</span><span class="n">equals</span><span class="p">(</span><span class="n">r_child</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">X</span><span class="p">)</span>
+                <span class="k">assert</span> <span class="n">left_y</span><span class="o">.</span><span class="n">equals</span><span class="p">(</span><span class="n">l_child</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">y</span><span class="p">)</span> <span class="ow">and</span> <span class="n">right_y</span><span class="o">.</span><span class="n">equals</span><span class="p">(</span><span class="n">r_child</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">y</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">assert</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">children</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span>
+                <span class="n">split_var</span><span class="p">,</span> <span class="n">split_val</span><span class="p">,</span> <span class="n">is_cat</span> <span class="o">=</span> <span class="n">node</span><span class="o">.</span><span class="n">get_split_info</span><span class="p">()</span>
+                <span class="k">assert</span> <span class="n">split_var</span> <span class="o">==</span> <span class="s1">&#39;&#39;</span>
+                <span class="k">assert</span> <span class="n">split_val</span> <span class="o">==</span> <span class="s1">&#39;&#39;</span>
+                <span class="k">assert</span> <span class="n">is_cat</span> <span class="o">==</span> <span class="kc">False</span>
+
+            <span class="c1"># if classification task, check K classes and that p sums to one</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">_data</span><span class="p">,</span> <span class="n">NodeDataClassification</span><span class="p">):</span>
+                <span class="n">p</span> <span class="o">=</span> <span class="n">node</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">p</span>
+                <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="o">==</span> <span class="n">node</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">y</span><span class="o">.</span><span class="n">cat</span><span class="o">.</span><span class="n">categories</span><span class="o">.</span><span class="n">size</span>
+                <span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">isclose</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">sum</span><span class="p">(),</span> <span class="mi">1</span><span class="p">)</span>
+
+            <span class="c1"># node observations must be &gt; min</span>
+            <span class="k">assert</span> <span class="n">node</span><span class="o">.</span><span class="n">get_nobs</span><span class="p">()</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">node_min_size</span>
+
+            <span class="c1"># check that the node tag descriptions are properly updated every time</span>
+            <span class="c1"># prev_tag = node.tag</span>
+            <span class="c1"># node._gen_tags()</span>
+            <span class="c1"># assert node.tag == prev_tag</span>
+
+            <span class="c1"># These check apply only for non-root nodes</span>
+            <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">is_root</span><span class="p">():</span>
+                <span class="k">assert</span> <span class="n">node</span><span class="o">.</span><span class="n">depth</span> <span class="o">==</span> <span class="mi">0</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">parent</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_parent</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">parent</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Node parent should not be None.&#39;</span><span class="p">)</span>
+                <span class="c1"># node obs must be smaller than parent</span>
+                <span class="k">assert</span> <span class="n">node</span><span class="o">.</span><span class="n">get_nobs</span><span class="p">()</span> <span class="o">&lt;</span> <span class="n">parent</span><span class="o">.</span><span class="n">get_nobs</span><span class="p">()</span>
+
+                <span class="c1"># node depth is 1 + parent depth</span>
+                <span class="k">assert</span> <span class="n">node</span><span class="o">.</span><span class="n">depth</span> <span class="o">==</span> <span class="mi">1</span> <span class="o">+</span> <span class="n">parent</span><span class="o">.</span><span class="n">depth</span>
+
+                <span class="c1"># node depth should also match level implementation</span>
+                <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">level</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">id</span><span class="p">)</span> <span class="o">==</span> <span class="n">node</span><span class="o">.</span><span class="n">depth</span>
+
+            <span class="k">return</span> <span class="kc">True</span>
+
+        <span class="n">res</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">filter</span><span class="p">(</span><span class="n">is_valid_node</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">all_nodes_itr</span><span class="p">()))</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nodes</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">res</span><span class="p">)</span></div>
+
+    
+
+<div class="viewcode-block" id="Tree.apply_split">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.tree.Tree.apply_split">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">apply_split</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">:</span> <span class="n">Node</span><span class="p">,</span> <span class="n">split_var</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">split_val</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">T</span><span class="p">]</span> <span class="o">|</span> <span class="n">T</span><span class="p">,</span> <span class="n">l_leaf_params</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">r_leaf_params</span><span class="p">:</span> <span class="n">Any</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Apply a split to a leaf node by generating two children nodes.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        node : Node</span>
+<span class="sd">            The leaf node to be split.</span>
+<span class="sd">        split_var : str</span>
+<span class="sd">            The feature to split on.</span>
+<span class="sd">        split_val : Sequence[T] or T</span>
+<span class="sd">            The split value(s).</span>
+<span class="sd">        l_leaf_params : Any</span>
+<span class="sd">            Parameters for the left child.</span>
+<span class="sd">        r_leaf_params : Any</span>
+<span class="sd">            Parameters for the right child.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        InvalidTreeError</span>
+<span class="sd">            If any of the resulting children have fewer observations than the minimum.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Split the node (leaf) by generating two children. Update the splitting rule (previously blank) of the node accordingly. The children parameters are given.</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">debug</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="n">node</span><span class="o">.</span><span class="n">is_leaf</span><span class="p">()</span>
+            <span class="c1"># assert node.is_split_rule_empty()</span>
+
+        <span class="c1"># find left and right data subsets</span>
+        <span class="n">node_data_l</span><span class="p">,</span> <span class="n">node_data_r</span> <span class="o">=</span> <span class="n">node</span><span class="o">.</span><span class="n">get_split_data</span><span class="p">(</span><span class="n">split_var</span><span class="p">,</span> <span class="n">split_val</span><span class="p">,</span> <span class="n">l_leaf_params</span><span class="p">,</span> <span class="n">r_leaf_params</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">node_data_l</span><span class="o">.</span><span class="n">get_nobs</span><span class="p">()</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">node_min_size</span> <span class="ow">or</span> <span class="n">node_data_r</span><span class="o">.</span><span class="n">get_nobs</span><span class="p">()</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">node_min_size</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">InvalidTreeError</span><span class="p">(</span><span class="s1">&#39;One of the children has less than min node size observations&#39;</span><span class="p">)</span>
+        <span class="n">node</span><span class="o">.</span><span class="n">update_split_info</span><span class="p">(</span><span class="n">split_var</span><span class="p">,</span> <span class="n">split_val</span><span class="p">)</span>
+
+        <span class="c1"># Append the nodes and grow the tree</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">node_data_l</span><span class="p">,</span> <span class="n">is_l</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="n">node</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">node_data_r</span><span class="p">,</span> <span class="n">is_l</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="n">node</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="Tree.get_node">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.tree.Tree.get_node">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_node</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Node</span><span class="p">:</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">node</span> <span class="o">:=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">get_node</span><span class="p">(</span><span class="n">node_id</span><span class="p">))</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Node </span><span class="si">{</span><span class="n">node_id</span><span class="si">}</span><span class="s1"> does not exist&#39;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">node</span></div>
+
+    
+<div class="viewcode-block" id="Tree.get_root">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.tree.Tree.get_root">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_root</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Node</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return the root node of the tree.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        Node</span>
+<span class="sd">            The root node.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">root</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_node</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">debug</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">root</span><span class="o">.</span><span class="n">is_root</span><span class="p">():</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Root node is not actually root&#39;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">root</span></div>
+
+
+<div class="viewcode-block" id="Tree.is_stump">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.tree.Tree.is_stump">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">is_stump</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+        <span class="c1"># Different implementations of the same thing. Just for sanity</span>
+        <span class="n">c1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_root</span><span class="p">()</span><span class="o">.</span><span class="n">is_leaf</span><span class="p">()</span>
+        <span class="n">c3</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">size</span><span class="p">()</span> <span class="o">==</span> <span class="mi">1</span>
+        <span class="n">c4</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nodes</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">debug</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="n">c1</span> <span class="o">==</span> <span class="n">c3</span> <span class="o">==</span> <span class="n">c4</span>
+        <span class="k">return</span> <span class="n">c1</span></div>
+
+    
+<div class="viewcode-block" id="Tree.get_children">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.tree.Tree.get_children">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_children</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">:</span> <span class="n">Node</span><span class="o">|</span><span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Node</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Get the children of the specified node.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        node : Node or int</span>
+<span class="sd">            The node or its identifier.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        list</span>
+<span class="sd">            A list of child nodes (ordered as left then right).</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        ValueError</span>
+<span class="sd">            If the node does not have exactly two children (in non-leaf cases).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">Node</span><span class="p">):</span>
+            <span class="n">res</span> <span class="o">=</span>  <span class="bp">self</span><span class="o">.</span><span class="n">children</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">id</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">res</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">children</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">res</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[]</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">debug</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">res</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">res</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">is_l</span><span class="p">:</span>
+            <span class="n">res</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">res</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">res</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">res</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">debug</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="n">res</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">is_l</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">res</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">is_l</span>
+        <span class="k">return</span> <span class="n">res</span></div>
+
+    
+<div class="viewcode-block" id="Tree.remove_node">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.tree.Tree.remove_node">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">remove_node</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">:</span> <span class="n">Node</span><span class="o">|</span><span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">Node</span><span class="p">):</span>
+            <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">remove_node</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">id</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">remove_node</span><span class="p">(</span><span class="n">node</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Tree.get_parent">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.tree.Tree.get_parent">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_parent</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">:</span> <span class="n">Node</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Node</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">Node</span><span class="p">):</span>
+            <span class="n">res</span> <span class="o">=</span>  <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">id</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">res</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">res</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Node has no parent&#39;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">res</span></div>
+
+    
+<div class="viewcode-block" id="Tree.get_sibling">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.tree.Tree.get_sibling">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_sibling</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">:</span> <span class="n">Node</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Node</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">Node</span><span class="p">):</span>
+            <span class="n">res</span> <span class="o">=</span>  <span class="bp">self</span><span class="o">.</span><span class="n">siblings</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">id</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">res</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">siblings</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">res</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Wrong number of siblings for Node </span><span class="si">{</span><span class="nb">str</span><span class="p">(</span><span class="n">node</span><span class="p">)</span><span class="si">}</span><span class="s1">: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">res</span><span class="p">)</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">res</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span></div>
+
+    
+<div class="viewcode-block" id="Tree.get_parents_with_two_leaves">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.tree.Tree.get_parents_with_two_leaves">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_parents_with_two_leaves</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Node</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Get all internal nodes that have exactly two leaves as children.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        list</span>
+<span class="sd">            List of nodes satisfying the condition.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">def</span><span class="w"> </span><span class="nf">filter_f</span><span class="p">(</span><span class="n">node</span><span class="p">:</span> <span class="n">Node</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+            <span class="n">children</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_children</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">children</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">False</span>
+            <span class="k">return</span> <span class="n">children</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">is_leaf</span><span class="p">()</span> <span class="ow">and</span> <span class="n">children</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">is_leaf</span><span class="p">()</span>
+        
+        <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">filter_nodes</span><span class="p">(</span><span class="n">filter_f</span><span class="p">))</span></div>
+
+    
+<div class="viewcode-block" id="Tree.get_nonleaf_nodes">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.tree.Tree.get_nonleaf_nodes">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_nonleaf_nodes</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">filter_root</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Node</span><span class="p">]:</span>
+        <span class="k">def</span><span class="w"> </span><span class="nf">filter_f</span><span class="p">(</span><span class="n">node</span><span class="p">:</span> <span class="n">Node</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">is_root</span><span class="p">():</span>
+                <span class="k">if</span> <span class="n">filter_root</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="kc">False</span>
+            <span class="k">return</span> <span class="ow">not</span> <span class="n">node</span><span class="o">.</span><span class="n">is_leaf</span><span class="p">()</span>
+        <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">filter_nodes</span><span class="p">(</span><span class="n">filter_f</span><span class="p">))</span></div>
+
+    
+<div class="viewcode-block" id="Tree.check_split_struct">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.tree.Tree.check_split_struct">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">check_split_struct</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">:</span> <span class="n">Node</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Check that the splitting rules along the subtree starting at a given node</span>
+<span class="sd">        do not produce empty splits.</span>
+
+<span class="sd">        While this function does not guarantee that the split is valid, its fast </span>
+<span class="sd">        to execute and can filter some obvious incompatibilities.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        node : Node</span>
+<span class="sd">            The root of the subtree to check.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        InvalidTreeError</span>
+<span class="sd">            If an empty split is encountered.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1">#Check that the split sequence along a subtree does not lead to (a priori) empty nodes, for example by a v1 =&gt; 5 and v1 &lt; 3. This can happen due to swap and change.&#39;&#39;&#39;</span>
+        <span class="k">def</span><span class="w"> </span><span class="nf">_check_struct_rec</span><span class="p">(</span><span class="n">node</span><span class="p">:</span> <span class="n">Node</span><span class="p">,</span> <span class="n">d</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span><span class="nb">float</span><span class="p">]</span><span class="o">|</span><span class="nb">set</span><span class="p">[</span><span class="n">Any</span><span class="p">]],</span>
+                              <span class="n">global_d</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span><span class="nb">float</span><span class="p">]</span><span class="o">|</span><span class="nb">set</span><span class="p">[</span><span class="n">Any</span><span class="p">]]):</span>
+<span class="w">            </span><span class="sd">&#39;&#39;&#39;Dict contains the exclusion logic.</span>
+<span class="sd">            if not categorical, [min, max) range of the data. Initialized to (-inf, inf).</span>
+<span class="sd">            If categorical, the set of possible values. Initialized to the available ones.&#39;&#39;&#39;</span>
+            <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">is_leaf</span><span class="p">():</span>
+                <span class="k">return</span>
+            <span class="n">split_var</span><span class="p">,</span> <span class="n">split_val</span><span class="p">,</span> <span class="n">is_cat</span> <span class="o">=</span> <span class="n">node</span><span class="o">.</span><span class="n">get_split_info</span><span class="p">()</span>
+
+            <span class="k">if</span> <span class="n">split_var</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">d</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">split_var</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">global_d</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="n">InvalidTreeError</span><span class="p">(</span><span class="s1">&#39;Split variable is not available&#39;</span><span class="p">)</span>
+                <span class="n">d</span><span class="p">[</span><span class="n">split_var</span><span class="p">]</span> <span class="o">=</span> <span class="n">global_d</span><span class="p">[</span><span class="n">split_var</span><span class="p">]</span>
+
+            <span class="n">val</span> <span class="o">=</span> <span class="n">d</span><span class="p">[</span><span class="n">split_var</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">is_cat</span><span class="p">:</span>
+                <span class="n">split_val</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">split_val</span><span class="p">)</span>
+                <span class="n">l_split</span> <span class="o">=</span> <span class="n">val</span><span class="o">.</span><span class="n">intersection</span><span class="p">(</span><span class="n">split_val</span><span class="p">)</span> <span class="c1"># type: ignore</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">l_split</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="n">InvalidTreeError</span><span class="p">(</span><span class="s1">&#39;Empty split&#39;</span><span class="p">)</span>
+                <span class="n">r_split</span> <span class="o">=</span> <span class="n">val</span><span class="o">.</span><span class="n">difference</span><span class="p">(</span><span class="n">split_val</span><span class="p">)</span> <span class="c1"># type: ignore</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">r_split</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="n">InvalidTreeError</span><span class="p">(</span><span class="s1">&#39;Empty split&#39;</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">l_split</span> <span class="o">=</span> <span class="p">(</span><span class="n">val</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="nb">min</span><span class="p">(</span><span class="n">val</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">split_val</span><span class="p">))</span> <span class="c1"># type: ignore</span>
+                <span class="k">if</span> <span class="n">l_split</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="n">l_split</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span>
+                    <span class="k">raise</span> <span class="n">InvalidTreeError</span><span class="p">(</span><span class="s1">&#39;Empty split&#39;</span><span class="p">)</span>
+                <span class="n">r_split</span> <span class="o">=</span> <span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="n">val</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">split_val</span><span class="p">),</span> <span class="n">val</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="c1"># type: ignore</span>
+                <span class="k">if</span> <span class="n">r_split</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="n">r_split</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span>
+                    <span class="k">raise</span> <span class="n">InvalidTreeError</span><span class="p">(</span><span class="s1">&#39;Empty split&#39;</span><span class="p">)</span>
+            <span class="c1"># if survived, repeat in both children</span>
+            <span class="n">d_l</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">d</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+            <span class="n">d_l</span><span class="p">[</span><span class="n">split_var</span><span class="p">]</span> <span class="o">=</span> <span class="n">l_split</span>
+            <span class="n">d_r</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">d</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+            <span class="n">d_r</span><span class="p">[</span><span class="n">split_var</span><span class="p">]</span> <span class="o">=</span> <span class="n">r_split</span>
+
+            <span class="n">l_child</span><span class="p">,</span> <span class="n">r_child</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_children</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+            <span class="n">_check_struct_rec</span><span class="p">(</span><span class="n">l_child</span><span class="p">,</span> <span class="n">d_l</span><span class="p">,</span> <span class="n">global_d</span><span class="p">)</span>
+            <span class="n">_check_struct_rec</span><span class="p">(</span><span class="n">r_child</span><span class="p">,</span> <span class="n">d_r</span><span class="p">,</span> <span class="n">global_d</span><span class="p">)</span>
+
+        <span class="n">aval_splits</span><span class="p">,</span> <span class="n">is_cat</span> <span class="o">=</span> <span class="n">node</span><span class="o">.</span><span class="n">get_available_splits</span><span class="p">()</span>
+        <span class="n">global_d</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="nb">set</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">if</span> <span class="n">is_cat</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="k">else</span> <span class="p">(</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">,</span> <span class="n">v</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">aval_splits</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+        
+        <span class="n">_check_struct_rec</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="p">{},</span> <span class="n">global_d</span><span class="p">)</span></div>
+
+                
+                    
+                
+
+<div class="viewcode-block" id="Tree.update_subtree_data">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.tree.Tree.update_subtree_data">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">update_subtree_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">:</span> <span class="n">Node</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Update the data splits for all descendants of a given node.</span>
+<span class="sd">        </span>
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        node : Node</span>
+<span class="sd">            The node whose subtree data will be updated.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1">#If the splitting rules have not been changed from the outside, this should have no effect.</span>
+        <span class="k">def</span><span class="w"> </span><span class="nf">_update_split_rec</span><span class="p">(</span><span class="n">node</span><span class="p">:</span> <span class="n">Node</span><span class="p">):</span>
+<span class="w">            </span><span class="sd">&#39;&#39;&#39;Compute left and right children data subsets. If valid, update </span>
+<span class="sd">            the children subsets. Repeat in children&#39;&#39;&#39;</span>
+
+            <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">is_leaf</span><span class="p">():</span>
+                <span class="k">return</span>
+            
+            <span class="c1"># split the data based on the current rule</span>
+            <span class="n">left_X</span><span class="p">,</span> <span class="n">right_X</span><span class="p">,</span> <span class="n">left_y</span><span class="p">,</span> <span class="n">right_y</span> <span class="o">=</span> <span class="n">node</span><span class="o">.</span><span class="n">get_data_split</span><span class="p">()</span>
+
+            <span class="c1"># attempt to update the data</span>
+            <span class="n">l_child</span><span class="p">,</span> <span class="n">r_child</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_children</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+            <span class="n">l_child</span><span class="o">.</span><span class="n">update_split_data</span><span class="p">(</span><span class="n">left_X</span><span class="p">,</span> <span class="n">left_y</span><span class="p">)</span>
+            <span class="n">r_child</span><span class="o">.</span><span class="n">update_split_data</span><span class="p">(</span><span class="n">right_X</span><span class="p">,</span> <span class="n">right_y</span><span class="p">)</span>
+
+            <span class="c1"># repeat in children</span>
+            <span class="n">_update_split_rec</span><span class="p">(</span><span class="n">l_child</span><span class="p">)</span>
+            <span class="n">_update_split_rec</span><span class="p">(</span><span class="n">r_child</span><span class="p">)</span>
+
+        <span class="n">_update_split_rec</span><span class="p">(</span><span class="n">node</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Tree.update_split">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.tree.Tree.update_split">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">update_split</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">:</span> <span class="n">Node</span><span class="p">,</span> <span class="n">split_var</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">split_val</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">T</span><span class="p">]</span> <span class="o">|</span> <span class="n">T</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Change the splitting rule for the current node. Update the data subset of the children, and of all the descendants recursively.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        node : Node</span>
+<span class="sd">            The node to update.</span>
+<span class="sd">        split_var : str</span>
+<span class="sd">            The new splitting variable.</span>
+<span class="sd">        split_val : Sequence[T] or T</span>
+<span class="sd">            The new splitting value(s).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># change the split rule for the root node</span>
+        <span class="n">node</span><span class="o">.</span><span class="n">update_split_info</span><span class="p">(</span><span class="n">split_var</span><span class="p">,</span> <span class="n">split_val</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">update_subtree_data</span><span class="p">(</span><span class="n">node</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Tree.show">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.tree.Tree.show">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">show</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Print the tree. Update all the tags first. Tags are not automatically updated for performance speed.</span>
+<span class="sd">        </span>
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        str</span>
+<span class="sd">            The string representation of the tree.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">node</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">all_nodes_itr</span><span class="p">():</span>
+            <span class="n">node</span><span class="o">.</span><span class="n">_gen_tags</span><span class="p">()</span>
+        <span class="n">res</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">res</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">res</span></div>
+
+    
+<div class="viewcode-block" id="Tree.is_equal">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.tree.Tree.is_equal">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">is_equal</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">:</span> <span class="n">Self</span><span class="p">,</span> <span class="n">hard</span><span class="p">:</span><span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">categories</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span><span class="nb">set</span><span class="p">]</span><span class="o">|</span><span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Check if two trees are equal in structure and (optionally) in parameters.</span>
+<span class="sd">        </span>
+<span class="sd">        The hard parameter controls how strict the testing should be. Hard = 0 checks </span>
+<span class="sd">        they have the same structure and same splitting variables. Hard = 1 additionally </span>
+<span class="sd">        checks the splitting values. Hard = 2 expects same structure, same splits, </span>
+<span class="sd">        same data in nodes. Hard = 3 expects equality also for leaf parameters.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        other : Tree</span>
+<span class="sd">            The tree to compare with.</span>
+<span class="sd">        hard : int, optional</span>
+<span class="sd">            Level of strictness (0: structure and split variable; 1: includes split values; 2: includes data; 3: also leaf parameters) (default 0).</span>
+<span class="sd">        categories : dict[str, set] or None, optional</span>
+<span class="sd">            Mapping of categorical variable values, if needed.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        bool</span>
+<span class="sd">            True if the trees are equal under the chosen criteria.</span>
+<span class="sd">        &quot;&quot;&quot;</span>        
+        <span class="k">def</span><span class="w"> </span><span class="nf">_check_nodes</span><span class="p">(</span><span class="n">node1</span><span class="p">:</span> <span class="n">Node</span><span class="p">,</span> <span class="n">node2</span><span class="p">:</span> <span class="n">Node</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+
+            <span class="c1"># same type of node, one must be subclass of the other</span>
+            <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">node1</span><span class="p">,</span> <span class="n">Node</span><span class="p">)</span>
+            <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">node2</span><span class="p">,</span> <span class="n">Node</span><span class="p">)</span>
+
+            <span class="c1"># check right amount of children</span>
+            <span class="n">c1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_children</span><span class="p">(</span><span class="n">node1</span><span class="p">)</span>
+            <span class="n">c2</span> <span class="o">=</span> <span class="n">other</span><span class="o">.</span><span class="n">get_children</span><span class="p">(</span><span class="n">node2</span><span class="p">)</span>
+            <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">c1</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">c2</span><span class="p">)</span>
+            
+            <span class="c1"># if leaf, check data</span>
+            <span class="k">if</span> <span class="n">node1</span><span class="o">.</span><span class="n">is_leaf</span><span class="p">():</span>
+                <span class="k">assert</span> <span class="n">node2</span><span class="o">.</span><span class="n">is_leaf</span><span class="p">()</span>
+
+                <span class="c1"># check data</span>
+                <span class="k">if</span> <span class="n">hard</span> <span class="o">&gt;=</span> <span class="mi">2</span><span class="p">:</span>
+                    <span class="k">assert</span> <span class="n">node1</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">X</span><span class="o">.</span><span class="n">equals</span><span class="p">(</span><span class="n">node2</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">X</span><span class="p">)</span>
+                    <span class="k">assert</span> <span class="n">node1</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">y</span><span class="o">.</span><span class="n">equals</span><span class="p">(</span><span class="n">node2</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">y</span><span class="p">)</span>
+
+                <span class="c1"># check leaf params</span>
+                <span class="k">if</span> <span class="n">hard</span> <span class="o">&gt;=</span> <span class="mi">3</span><span class="p">:</span>
+                    <span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">node1</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">get_params</span><span class="p">()),</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">node2</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">get_params</span><span class="p">()))</span>
+
+
+            <span class="c1"># if interior, check splitting rule</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">assert</span> <span class="ow">not</span> <span class="n">node2</span><span class="o">.</span><span class="n">is_leaf</span><span class="p">()</span>
+                <span class="n">svar1</span><span class="p">,</span> <span class="n">sval1</span><span class="p">,</span> <span class="n">is_cat1</span> <span class="o">=</span> <span class="n">node1</span><span class="o">.</span><span class="n">get_split_info</span><span class="p">()</span>
+                <span class="n">svar2</span><span class="p">,</span> <span class="n">sval2</span><span class="p">,</span> <span class="n">is_cat2</span> <span class="o">=</span> <span class="n">node2</span><span class="o">.</span><span class="n">get_split_info</span><span class="p">()</span>
+                <span class="k">if</span> <span class="n">hard</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="k">assert</span> <span class="n">svar1</span> <span class="o">==</span> <span class="n">svar2</span>
+                    <span class="k">assert</span> <span class="n">is_cat1</span> <span class="o">==</span> <span class="n">is_cat2</span>
+                    <span class="c1"># assert node1._data.get_split_var() == node2._data.get_split_var()</span>
+                <span class="k">if</span> <span class="n">is_cat1</span><span class="p">:</span>
+                    <span class="c1"># same split vals</span>
+                    <span class="n">cond1</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">sval1</span><span class="p">)</span> <span class="o">==</span> <span class="nb">set</span><span class="p">(</span><span class="n">sval2</span><span class="p">)</span>
+
+                    <span class="c1"># mirrored split vals. E.g. (ab) vs (cd). Children need to be swapped</span>
+                    <span class="k">if</span> <span class="n">categories</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="n">cond2</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">node1</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">X</span><span class="p">[</span><span class="n">svar1</span><span class="p">]</span><span class="o">.</span><span class="n">cat</span><span class="o">.</span><span class="n">categories</span><span class="p">)</span><span class="o">.</span><span class="n">difference</span><span class="p">(</span><span class="n">sval1</span><span class="p">)</span> <span class="o">==</span> <span class="nb">set</span><span class="p">(</span><span class="n">sval2</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">cond2</span> <span class="o">=</span> <span class="n">categories</span><span class="p">[</span><span class="n">svar1</span><span class="p">]</span><span class="o">.</span><span class="n">difference</span><span class="p">(</span><span class="n">sval1</span><span class="p">)</span> <span class="o">==</span> <span class="nb">set</span><span class="p">(</span><span class="n">sval2</span><span class="p">)</span>
+
+                    <span class="k">if</span> <span class="n">cond2</span><span class="p">:</span>
+                        <span class="c1"># need to swap children of node 1</span>
+                        <span class="n">c1</span> <span class="o">=</span> <span class="n">c1</span><span class="p">[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+                    <span class="k">if</span> <span class="n">hard</span> <span class="o">&gt;=</span> <span class="mi">1</span><span class="p">:</span>
+                        <span class="k">assert</span> <span class="n">cond1</span> <span class="ow">or</span> <span class="n">cond2</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">hard</span> <span class="o">&gt;=</span> <span class="mi">1</span><span class="p">:</span>
+                        <span class="k">assert</span> <span class="nb">type</span><span class="p">(</span><span class="n">sval1</span><span class="p">)</span> <span class="o">==</span> <span class="nb">type</span><span class="p">(</span><span class="n">sval2</span><span class="p">)</span>
+                        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">sval1</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+                            <span class="k">assert</span> <span class="nb">set</span><span class="p">(</span><span class="n">sval1</span><span class="p">)</span> <span class="o">==</span> <span class="nb">set</span><span class="p">(</span><span class="n">sval2</span><span class="p">)</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">isclose</span><span class="p">(</span><span class="n">sval1</span><span class="p">,</span> <span class="n">sval2</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">c1</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">True</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="nb">all</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="n">_check_nodes</span><span class="p">,</span> <span class="n">c1</span><span class="p">,</span> <span class="n">c2</span><span class="p">))</span>
+        
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nodes</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">other</span><span class="o">.</span><span class="n">nodes</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">_check_nodes</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_root</span><span class="p">(),</span> <span class="n">other</span><span class="o">.</span><span class="n">get_root</span><span class="p">())</span>
+        <span class="k">except</span> <span class="ne">AssertionError</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span></div>
+</div>
+
+
+<div class="viewcode-block" id="TreeFast">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.tree.TreeFast">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">TreeFast</span><span class="p">(</span><span class="n">Tree</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Fast implementation of Tree using NodeFast as the underlying node class. Tree copy is also improved.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">node_class</span> <span class="o">=</span> <span class="n">NodeFast</span>
+
+<div class="viewcode-block" id="TreeFast.copy">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.tree.TreeFast.copy">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">copy</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">light</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">no_data</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">memo</span><span class="p">:</span> <span class="nb">dict</span><span class="o">|</span><span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s1">&#39;Tree&#39;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Optimized copy of the tree.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">light</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">light</span><span class="o">=</span><span class="n">light</span><span class="p">,</span> <span class="n">no_data</span><span class="o">=</span><span class="n">no_data</span><span class="p">,</span> <span class="n">memo</span><span class="o">=</span><span class="n">memo</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">cls</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">)</span>
+            <span class="n">result</span><span class="o">.</span><span class="n">_nodes</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">light</span><span class="o">=</span><span class="n">light</span><span class="p">,</span> <span class="n">no_data</span><span class="o">=</span><span class="n">no_data</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span><span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_nodes</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+            <span class="n">result</span><span class="o">.</span><span class="n">rng</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rng</span>
+            <span class="n">result</span><span class="o">.</span><span class="n">node_min_size</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">node_min_size</span>
+            <span class="n">result</span><span class="o">.</span><span class="n">debug</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">debug</span>
+            <span class="n">result</span><span class="o">.</span><span class="n">llik</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">llik</span>
+            <span class="n">result</span><span class="o">.</span><span class="n">log_tree_prior_prob</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">log_tree_prior_prob</span>
+            <span class="n">result</span><span class="o">.</span><span class="n">id_counter</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">id_counter</span>
+            <span class="n">result</span><span class="o">.</span><span class="n">ROOT</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ROOT</span>
+            <span class="n">result</span><span class="o">.</span><span class="n">DEPTH</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">DEPTH</span>
+            <span class="n">result</span><span class="o">.</span><span class="n">WIDTH</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">WIDTH</span>
+            <span class="n">result</span><span class="o">.</span><span class="n">ZIGZAG</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ZIGZAG</span>
+            <span class="n">result</span><span class="o">.</span><span class="n">node_class</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">node_class</span>
+            <span class="n">result</span><span class="o">.</span><span class="n">_identifier</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_identifier</span>
+            <span class="n">result</span><span class="o">.</span><span class="n">root</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">root</span>
+            <span class="n">result</span><span class="o">.</span><span class="n">temperature</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">temperature</span>
+
+            <span class="k">return</span> <span class="n">result</span></div>
+
+        
+<div class="viewcode-block" id="TreeFast.update_subtree_data">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.tree.TreeFast.update_subtree_data">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">update_subtree_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">:</span> <span class="n">Node</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Update the subtree data with a fast preliminary check before performing the full update.</span>
+
+<span class="sd">        The preliminary check does not count how many observations fall in each node; just whether the splits make logical sense. This is fast. If so, proceed with the proper, expensive check.</span>
+<span class="sd">        &quot;&quot;&quot;</span>        
+        <span class="bp">self</span><span class="o">.</span><span class="n">check_split_struct</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">update_subtree_data</span><span class="p">(</span><span class="n">node</span><span class="p">)</span></div>
+</div>
+
+
+    
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Guglielmo Gattiglio.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

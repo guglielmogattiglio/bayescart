@@ -1,0 +1,361 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>bayescart.parallel_tempering_base &mdash; bayescart  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            bayescart
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../modules.html">bayescart</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">bayescart</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">bayescart.parallel_tempering_base</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for bayescart.parallel_tempering_base</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Bayesian CART (BCART) models solved using parallel tempering.</span>
+
+<span class="sd">This module implements the parallel tempering algorithm for addressing </span>
+<span class="sd">the multimodality of BCART posterior space. This is an abstract base class.</span>
+<span class="sd">Subclasses will implement the specific parallel tempering logic, such as</span>
+<span class="sd">how to apply flattening of the posterior distribution.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sequence</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy.typing</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">npt</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.bcart</span><span class="w"> </span><span class="kn">import</span> <span class="n">BCARTClassic</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.tree</span><span class="w"> </span><span class="kn">import</span> <span class="n">Tree</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">wraps</span>
+
+<div class="viewcode-block" id="BCARTPT">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.parallel_tempering_base.BCARTPT">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">BCARTPT</span><span class="p">(</span><span class="n">BCARTClassic</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Base class for Parallel Tempering variants of BCART.</span>
+
+<span class="sd">    Supports staggered activation of chains through steps_per_chain.</span>
+<span class="sd">    This can help warmer chains to converge before adding more chains </span>
+<span class="sd">    closer to the cold one (target chain).</span>
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    temps : Sequence[float] or NDArrayFloat</span>
+<span class="sd">        List of temperatures for each chain. One of the ends must be 1.</span>
+<span class="sd">    steps_per_chain : Sequence[int] or NDArray[int] or None, optional</span>
+<span class="sd">        Number of iterations to run before unlocking additional chains.</span>
+<span class="sd">    swap_type : str, optional</span>
+<span class="sd">        Swap type: &#39;stochastic&#39; or deterministic (default &#39;stochastic&#39;).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">tempering</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+
+    <span class="nd">@wraps</span><span class="p">(</span><span class="n">BCARTClassic</span><span class="o">.</span><span class="fm">__init__</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">temps</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span> <span class="n">steps_per_chain</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">int_</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">swap_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;stochastic&#39;</span><span class="p">,</span> <span class="n">iters</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1250</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        temps: list of temperatures for each chain. </span>
+
+<span class="sd">        steps_per_chain: let lower chains converge first without working on upper ones, </span>
+<span class="sd">        once they converge then move up with the others chains. </span>
+<span class="sd">        This is always done in pairs to allow for meaningful swaps. It should contains </span>
+<span class="sd">        the number of iters you want each pair to run before unlocking the next. </span>
+<span class="sd">        For example: 8 chains, tot iters = 100, first 2 10 iters, </span>
+<span class="sd">        then 25 iters with next two, then 30 with next two and finally 35 with </span>
+<span class="sd">        the upper ones. steps_per_chain = c(10,25,30,35)&#39;&#39;&#39;</span>
+        <span class="n">n_chains</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">temps</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">temps</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">temps</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">temps</span> <span class="o">=</span> <span class="n">temps</span><span class="p">[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Either the first or last temperature must be 1&#39;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">n_chains</span> <span class="o">%</span> <span class="mi">2</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;You must use an even number of chains for tempering.&#39;</span><span class="p">)</span>
+        
+        <span class="k">if</span> <span class="n">steps_per_chain</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">steps_per_chain</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([</span><span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">n_chains</span><span class="o">//</span><span class="mi">2</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">iters</span><span class="p">])])</span>
+
+        <span class="k">if</span> <span class="nb">sum</span><span class="p">(</span><span class="n">steps_per_chain</span><span class="p">)</span> <span class="o">!=</span> <span class="n">iters</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Invalid input type for steps_per_chain, sum != iters&#39;</span><span class="p">)</span>
+        
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">steps_per_chain</span><span class="p">)</span> <span class="o">!=</span> <span class="n">n_chains</span><span class="o">//</span><span class="mi">2</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Invalid input type for steps_per_chain, length != n_chain/2&#39;</span><span class="p">)</span>
+        
+        <span class="n">steps_per_chain</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">0</span><span class="p">]),</span> <span class="n">np</span><span class="o">.</span><span class="n">cumsum</span><span class="p">(</span><span class="n">steps_per_chain</span><span class="p">)[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">iters</span><span class="o">+</span><span class="mi">1</span><span class="p">])])</span>
+        
+        <span class="c1"># numer of active chains</span>
+        <span class="n">n_active_chains</span> <span class="o">=</span> <span class="mi">2</span> <span class="o">*</span> <span class="nb">sum</span><span class="p">(</span><span class="n">steps_per_chain</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span>
+
+        <span class="c1"># which iteration whould we add more chains?</span>
+        <span class="n">next_chain_release</span> <span class="o">=</span> <span class="n">steps_per_chain</span><span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">n_active_chains</span><span class="o">/</span><span class="mi">2</span><span class="p">)]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">temps</span> <span class="o">=</span> <span class="n">temps</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">n_chains</span> <span class="o">=</span> <span class="n">n_chains</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">steps_per_chain</span> <span class="o">=</span> <span class="n">steps_per_chain</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">swap_type</span> <span class="o">=</span> <span class="n">swap_type</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">next_chain_release</span> <span class="o">=</span> <span class="n">next_chain_release</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">n_active_chains</span> <span class="o">=</span> <span class="n">n_active_chains</span>
+
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">iters</span><span class="o">=</span><span class="n">iters</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_init</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">_init</span><span class="p">()</span>
+
+        <span class="c1"># This tracks exchanges across chains</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">PT_swap_attempts</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">n_chains</span><span class="p">,),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">PT_swap_accepts</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">n_chains</span><span class="p">,),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">PT_swap_prob_over_time</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">PT_term_reg</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">n_chains</span><span class="p">,</span><span class="mi">1000</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">PT_term_reg_counter</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="c1"># this tracks all trees</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">trees</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">tree</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">light</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_chains</span><span class="p">)]</span>
+
+        <span class="c1"># this tracks the tree in the original chain - no need to change previous information storing code</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tree</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">trees</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_update_once</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">move</span><span class="p">:</span><span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Perform one parallel tempering update step across all active chains.</span>
+<span class="sd">        </span>
+<span class="sd">        This includes updating each chain and attempting swaps between adjacent chains.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">n_active_chains</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_active_chains</span>
+        <span class="n">current_iter</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">current_iter</span>
+
+        <span class="c1"># Unlock new chains if possible</span>
+        <span class="k">if</span> <span class="n">current_iter</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">next_chain_release</span><span class="p">:</span>
+            <span class="c1"># how many chains are we going to unlock?</span>
+            <span class="n">chain_increment</span> <span class="o">=</span> <span class="mi">2</span> <span class="o">*</span> <span class="nb">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">steps_per_chain</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">next_chain_release</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_active_chains</span><span class="p">,</span> <span class="n">chain_increment</span> <span class="o">+</span> <span class="n">n_active_chains</span><span class="p">):</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">debug</span><span class="p">:</span>
+                    <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">trees</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">is_stump</span><span class="p">()</span>
+                <span class="c1"># Copy the same tree as in the last chain - no reason to start from scratch</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">trees</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">trees</span><span class="p">[</span><span class="n">n_active_chains</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+            <span class="n">n_active_chains</span> <span class="o">+=</span> <span class="n">chain_increment</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">next_chain_release</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">steps_per_chain</span><span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">n_active_chains</span><span class="o">/</span><span class="mi">2</span><span class="p">)]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">n_active_chains</span> <span class="o">=</span> <span class="n">n_active_chains</span>
+
+
+        <span class="c1"># Update the tree in each available chain</span>
+        <span class="k">for</span> <span class="n">chain_idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_active_chains</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">current_chain</span> <span class="o">=</span> <span class="n">chain_idx</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">tree</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">trees</span><span class="p">[</span><span class="n">chain_idx</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">tree</span><span class="o">.</span><span class="n">temperature</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">temps</span><span class="p">[</span><span class="n">chain_idx</span><span class="p">]</span>
+            <span class="c1"># sample a move</span>
+            <span class="n">move</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rng</span><span class="o">.</span><span class="n">choice</span><span class="p">([</span><span class="s1">&#39;grow&#39;</span><span class="p">,</span> <span class="s1">&#39;prune&#39;</span><span class="p">,</span> <span class="s1">&#39;change&#39;</span><span class="p">,</span> <span class="s1">&#39;swap&#39;</span><span class="p">],</span> <span class="n">p</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">move_prob</span><span class="p">)</span>
+
+            <span class="c1"># Force grow for the first few iterations</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">current_iter</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">move</span> <span class="o">=</span> <span class="s1">&#39;grow&#39;</span>
+
+
+            <span class="c1"># attempt the update. Note: the acceptance probability is overloaded.</span>
+            <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">_update_once</span><span class="p">(</span><span class="n">move</span><span class="p">)</span>
+            <span class="c1"># replace updated tree in the chain</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">trees</span><span class="p">[</span><span class="n">chain_idx</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">tree</span>
+
+        
+        <span class="c1"># Attemp to swap trees across chains. Do not do this during burnin</span>
+        <span class="c1"># actually we want this to happen since the beginning!</span>
+        <span class="k">if</span> <span class="kc">True</span> <span class="ow">or</span> <span class="n">current_iter</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">burnin</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">swap_type</span> <span class="o">==</span> <span class="s1">&#39;stochastic&#39;</span><span class="p">:</span>
+                <span class="c1"># Pick at random whether to swap even (E) or odd (O) chains. E-O swap</span>
+                <span class="n">condition</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rng</span><span class="o">.</span><span class="n">random</span><span class="p">()</span> <span class="o">&lt;=</span> <span class="mf">0.5</span>
+            <span class="k">else</span><span class="p">:</span> <span class="c1"># deterministic</span>
+                <span class="c1"># Alternate in swapping E and O deterministically</span>
+                <span class="n">condition</span> <span class="o">=</span> <span class="n">current_iter</span> <span class="o">%</span> <span class="mi">2</span> <span class="o">==</span> <span class="mi">0</span>
+        
+            <span class="n">idx_swap_from</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">n_active_chains</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>               
+            <span class="c1"># Edit the default E swap to O swap</span>
+            <span class="k">if</span> <span class="n">condition</span><span class="p">:</span>
+                <span class="n">idx_swap_from</span> <span class="o">=</span> <span class="n">idx_swap_from</span> <span class="o">+</span> <span class="mi">1</span>
+            <span class="n">idx_swap_to</span> <span class="o">=</span> <span class="n">idx_swap_from</span> <span class="o">+</span> <span class="mi">1</span>
+            <span class="n">idx_swap_to</span> <span class="o">=</span> <span class="n">idx_swap_to</span> <span class="o">%</span> <span class="n">n_active_chains</span>
+
+            <span class="c1"># Iterate over the swaps</span>
+            <span class="k">for</span> <span class="n">chain_from</span><span class="p">,</span> <span class="n">chain_to</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">idx_swap_from</span><span class="p">,</span> <span class="n">idx_swap_to</span><span class="p">):</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">debug</span><span class="p">:</span>
+                    <span class="k">assert</span> <span class="n">chain_from</span> <span class="o">!=</span> <span class="n">chain_to</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">PT_swap_attempts</span><span class="p">[</span><span class="n">chain_from</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+
+                <span class="c1"># Compute acceptance probability of swap</span>
+                <span class="n">a_prob</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_swap_acceptance_prob</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">trees</span><span class="p">[</span><span class="n">chain_to</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">trees</span><span class="p">[</span><span class="n">chain_from</span><span class="p">])</span>
+                <span class="n">a_prob</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">a_prob</span><span class="p">)</span>
+                <span class="c1"># Swap trees if accepted</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">rng</span><span class="o">.</span><span class="n">random</span><span class="p">()</span> <span class="o">&lt;=</span> <span class="n">a_prob</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">trees</span><span class="p">[</span><span class="n">chain_from</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">trees</span><span class="p">[</span><span class="n">chain_to</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">trees</span><span class="p">[</span><span class="n">chain_to</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">trees</span><span class="p">[</span><span class="n">chain_from</span><span class="p">]</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">PT_swap_accepts</span><span class="p">[</span><span class="n">chain_from</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+
+        <span class="c1"># Store results</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">PT_term_reg</span><span class="p">[:,</span><span class="bp">self</span><span class="o">.</span><span class="n">PT_term_reg_counter</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">trees</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">get_n_leaves</span><span class="p">()</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_chains</span><span class="p">)])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">PT_term_reg_counter</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">PT_term_reg_counter</span> <span class="o">==</span> <span class="mi">999</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">PT_term_reg_counter</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">if</span> <span class="n">current_iter</span> <span class="o">%</span> <span class="mi">1000</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">current_iter</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">PT_swap_prob_over_time</span><span class="p">[</span><span class="n">current_iter</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">PT_swap_accepts</span><span class="o">/</span><span class="bp">self</span><span class="o">.</span><span class="n">PT_swap_attempts</span>
+
+        <span class="c1"># Set as &quot;main&quot; tree the one in the original chain</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tree</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">trees</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+<div class="viewcode-block" id="BCARTPT.run">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.parallel_tempering_base.BCARTPT.run">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Run the Parallel Tempering MCMC sampler.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        dict</span>
+<span class="sd">            A dictionary containing MCMC results and tempering statistics.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">res</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
+        <span class="n">res</span><span class="p">[</span><span class="s1">&#39;PT_swap_stats&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;accepts&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">PT_swap_accepts</span><span class="p">,</span> <span class="s1">&#39;attempts&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">PT_swap_attempts</span><span class="p">,</span> <span class="s1">&#39;PT_swap_final_prob&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">PT_swap_accepts</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">PT_swap_attempts</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="s1">&#39;PT_swap_prob_over_time&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">PT_swap_prob_over_time</span><span class="p">,</span> <span class="s1">&#39;PT_term_reg&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">PT_term_reg</span><span class="p">}</span>
+        <span class="n">res</span><span class="p">[</span><span class="s1">&#39;setup&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s1">&#39;temps&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">temps</span><span class="p">,</span> <span class="s1">&#39;steps_per_chain&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">steps_per_chain</span><span class="p">,</span> <span class="s1">&#39;swap_type&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">swap_type</span><span class="p">})</span>
+        <span class="k">return</span> <span class="n">res</span></div>
+
+
+<div class="viewcode-block" id="BCARTPT.get_acceptance_prob">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.parallel_tempering_base.BCARTPT.get_acceptance_prob">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_acceptance_prob</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">new_tree</span><span class="p">:</span> <span class="n">Tree</span><span class="p">,</span> <span class="n">move</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Compute the acceptance probability for a move in the parallel tempering framework.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        new_tree : Tree</span>
+<span class="sd">            The proposed tree.</span>
+<span class="sd">        move : str</span>
+<span class="sd">            The move type.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        float</span>
+<span class="sd">            The acceptance probability.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># compute log-likelihood of proposed tree</span>
+        <span class="n">proposal_llik</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">calc_llik</span><span class="p">(</span><span class="n">new_tree</span><span class="p">)</span>
+        <span class="n">current_llik</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">calc_llik</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tree</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">debug</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">tree</span><span class="o">.</span><span class="n">temperature</span> <span class="o">==</span> <span class="n">new_tree</span><span class="o">.</span><span class="n">temperature</span>
+        
+        <span class="n">trans_prob</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">trans_prob_log</span><span class="p">(</span><span class="n">move</span><span class="p">,</span> <span class="n">new_tree</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">tree</span><span class="p">)</span>
+        <span class="n">a_prob</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">trans_prob</span> <span class="o">+</span> <span class="n">new_tree</span><span class="o">.</span><span class="n">temperature</span> <span class="o">*</span> <span class="p">(</span><span class="n">proposal_llik</span> <span class="o">-</span> <span class="n">current_llik</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">a_prob</span></div>
+
+    
+<div class="viewcode-block" id="BCARTPT.get_swap_acceptance_prob">
+<a class="viewcode-back" href="../../bayescart.html#bayescart.parallel_tempering_base.BCARTPT.get_swap_acceptance_prob">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_swap_acceptance_prob</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tree_from</span><span class="p">:</span> <span class="n">Tree</span><span class="p">,</span> <span class="n">tree_to</span><span class="p">:</span> <span class="n">Tree</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Compute the swap acceptance probability between two chains.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        tree_from : Tree</span>
+<span class="sd">            The tree from one chain.</span>
+<span class="sd">        tree_to : Tree</span>
+<span class="sd">            The tree from the adjacent chain.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        float</span>
+<span class="sd">            The swap acceptance probability.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        NotImplementedError</span>
+<span class="sd">            This method must be implemented in subclasses.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span></div>
+</div>
+
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Guglielmo Gattiglio.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
