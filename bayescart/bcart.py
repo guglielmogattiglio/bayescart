@@ -213,7 +213,8 @@ class BCART():
         tot_mh_steps = self.iters
         elap_time = end_time - start_time
         elap_time_human = humanize.precisedelta(int(elap_time))
-        print(f'Elapsed time: {elap_time_human}, Tot iters: {tot_mh_steps}, Iters/min: {int(tot_mh_steps/elap_time*60)}/min')
+        if self.verbose:
+            print(f'Elapsed time: {elap_time_human}, Tot iters: {tot_mh_steps}, Iters/min: {int(tot_mh_steps/elap_time*60)}/min')
 
         timings = {'elap_time': elap_time, 'tot_mh_steps': tot_mh_steps, 'iters/min': int(tot_mh_steps/elap_time*60), 'elap_time_human': elap_time_human}
         out.update({'timings': timings})

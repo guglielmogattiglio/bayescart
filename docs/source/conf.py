@@ -12,9 +12,10 @@ import sys
 # Add the parent directory of your package to the Python path
 sys.path.insert(0, os.path.abspath(os.path.join("..", "..")))
 
-project = 'bayescart'
+project = 'BayesCART'
 copyright = '2025, Guglielmo Gattiglio'
 author = 'Guglielmo Gattiglio'
+html_title = "BayesCART Documentation"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration

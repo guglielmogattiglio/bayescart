@@ -16,6 +16,8 @@ Available objects:
 """
 
 __version__ = "0.1.0"
+__title__ = "BayesCART"  
+__author__ = "Guglielmo Gattiglio"
 
 from .bcart import BCARTClassic
 from .tempering_geometric import BCARTGeom

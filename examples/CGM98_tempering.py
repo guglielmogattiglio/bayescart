@@ -51,6 +51,8 @@ res_geom_lik = list(Parallel(-1)(delayed(lambda i: do_geom_lik(X, y, i))(seed+i)
 res_pp = list(Parallel(-1)(delayed(lambda i: do_pp(X, y, i))(seed+i) for i in range(8)))
 
 mdls = [res_classic, res_geom, res_geom_lik, res_pp]
+
+# relatively expensive to run, the implementation is not parallelized
 summary_tbls = [produce_tree_table(res) for res in mdls]
 
 # Comment: clear convergence failures for both classic and geom. GeomLik is closer to converge and properly identifies the top 2 trees. PP is much better, properly identifying all top 5 trees.
@@ -69,9 +71,13 @@ plot_hists(res, idx_range=idx_range)
 
 
 plot_hists(res_classic, idx_range=idx_range)
+print(summary_tbls[0])
 plot_hists(res_geom, idx_range=idx_range)
+print(summary_tbls[1])
 plot_hists(res_geom_lik, idx_range=idx_range)
+print(summary_tbls[2])
 plot_hists(res_pp, idx_range=idx_range)
+print(summary_tbls[3])
 
 plot_chain_comm(res_geom[0]) 
 plot_swap_prob(res_geom[0])

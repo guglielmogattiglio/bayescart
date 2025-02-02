@@ -1,7 +1,7 @@
 [project]
 name = "bayescart"
 version = "0.1.0"
-description = "A package for Bayesian Classification and Regression Trees (CART) posterior sampling using custom, advanced tempering methods"
+description = "BayesCART: a package for Bayesian Classification and Regression Trees (CART) posterior sampling using custom, advanced tempering methods"
 authors = [
     {name = "Guglielmo Gattiglio",email = "g.gattiglio@gmail.com"}
 ]
