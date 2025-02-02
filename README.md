@@ -1,3 +1,7 @@
+[![Documentation Status](https://img.shields.io/badge/docs-online-blue.svg)](https://guglielmogattiglio.github.io/bayescart/)
+[![Docs Build](https://github.com/guglielmogattiglio/bayescart/actions/workflows/docs.yml/badge.svg)](https://github.com/guglielmogattiglio/bayescart/actions/workflows/docs.yml)
+
+
 # BayesCART
 
 **BayesCART** is a Python package for Bayesian Classification and Regression Trees (CART) posterior sampling using custom, advanced tempering methods.
