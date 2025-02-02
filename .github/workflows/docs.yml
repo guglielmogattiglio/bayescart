@@ -5,6 +5,9 @@ on:
     branches:
       - main  # Change to your main branch name
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -20,13 +23,13 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          pip install sphinx sphinx-rtd-theme sphinx-autodoc-typehints
-          pip install -e .
+          pip install poetry
+          poetry install --with dev
 
       - name: Build Docs
         run: |
           cd docs
-          make html
+          poetry run make html
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
