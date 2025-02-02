@@ -5,6 +5,9 @@
   <a href="https://github.com/guglielmogattiglio/bayescart/actions/workflows/docs.yml">
     <img src="https://github.com/guglielmogattiglio/bayescart/actions/workflows/docs.yml/badge.svg" alt="Docs Build">
   </a>
+  <a href="https://github.com/guglielmogattiglio/bayescart/actions/workflows/tests.yml">
+    <img src="https://github.com/guglielmogattiglio/bayescart/actions/workflows/tests.yml/badge.svg" alt="Tests Status">
+  </a>
 </div>
 
 
