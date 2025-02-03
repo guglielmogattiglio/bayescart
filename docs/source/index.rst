@@ -13,7 +13,7 @@ classification and regression trees using Markov chain Monte Carlo (MCMC) method
 It supports various tempering strategies (geometric, likelihood-based, and pseudo-prior)
 to improve mixing in multi-modal posterior distributions.
 
-For more information on the creation of the package, see `this dedicated page <https://guglielmogattiglio.com/blog/bayescart-python-package/>`_.
+For more information on the creation of the package, see `this dedicated page <https://guglielmogattiglio.com/blog/bayescart-python-package>`_.
 
 For theoretical background on Bayesian CART, and the specific tempering strategies implemented in this package, check this `detailed blog series <https://guglielmogattiglio.com/blog/bayesian-classification-and-regression-trees-theoretical-series>`_.
 
