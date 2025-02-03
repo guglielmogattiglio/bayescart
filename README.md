@@ -31,7 +31,7 @@ For theoretical background on Bayesian CART, and the specific tempering strategi
 - **Documentation:** Fully generated via Sphinx and published on GitHub Pages.
 
 
-For more information on the creation of the package, see [this dedicated page](https://guglielmogattiglio.com/blog/bayescart-python-package/).
+For more information on the creation of the package, see [this dedicated page](https://guglielmogattiglio.com/blog/bayescart-python-package).
 
 
 
